@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-namespace neuron::core {
+namespace neuron {
     template <typename WorkerInfo>
     struct worker_info;
 

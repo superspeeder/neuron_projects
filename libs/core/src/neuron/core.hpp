@@ -1,5 +1,5 @@
 #pragma once
 
-namespace neuron::core {
+namespace neuron {
 
 }

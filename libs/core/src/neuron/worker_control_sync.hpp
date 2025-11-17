@@ -6,7 +6,7 @@
 #include <atomic>
 #include <shared_mutex>
 
-namespace neuron::core {
+namespace neuron {
     class worker_control_sync {
     public:
         worker_control_sync() = default;

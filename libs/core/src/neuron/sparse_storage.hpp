@@ -12,7 +12,7 @@
 #include <memory>
 #include <vector>
 
-namespace neuron::core {
+namespace neuron {
     namespace detail {
         // require trivial copies so that we can do std::memcpy on the data
         template <typename T>

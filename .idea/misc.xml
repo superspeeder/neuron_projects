@@ -7,6 +7,7 @@
   <component name="CidrRootsConfiguration">
     <sourceRoots>
       <file path="$PROJECT_DIR$/examples/src" />
+      <file path="$PROJECT_DIR$/libs/assets/src" />
       <file path="$PROJECT_DIR$/libs/core/src" />
     </sourceRoots>
   </component>
