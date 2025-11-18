@@ -18,5 +18,6 @@ namespace neuron::window {
         system& operator=(system&&) = delete;
 
         virtual const std::vector<const char *> & required_instance_extensions() = 0;
+        virtual void poll() = 0;
     };
 }

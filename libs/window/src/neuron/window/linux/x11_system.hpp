@@ -15,11 +15,14 @@ namespace neuron::window {
         ~x11_system() override = default;
 
         const std::vector<const char *> &required_instance_extensions() override;
+        void                             poll() override;
 
       private:
         Display* _display;
         int _default_screen;
         Window _root;
+
+        void _dispatch_event(XEvent& event);
     };
 }
 #endif

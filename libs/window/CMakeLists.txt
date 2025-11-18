@@ -42,10 +42,11 @@ if (LINUX)
     endif ()
 
     if (NEURON_WINDOW_WAYLAND_SUPPORT)
-        target_link_libraries(neuron_window PUBLIC ${WAYLAND_CLIENT_LIB})
+        target_link_libraries(neuron_window PUBLIC ${WAYLAND_CLIENT_LIB} decor-0)
         target_compile_definitions(neuron_window PUBLIC NEURON_WINDOW_WAYLAND_SUPPORT)
         message(STATUS "Including support for Wayland in neuron::window")
 
+        # xdg-shell
         add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell-protocol.c
                 COMMAND sh -c "wayland-scanner private-code < /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml > xdg-shell-protocol.c"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -59,6 +60,22 @@ if (LINUX)
         target_sources(neuron_window
                 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/xdg-shell-protocol.c
                 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/neuron/window/linux/xdg-shell-client-protocol.h)
+
+        # xdg-decoration
+        add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration-unstable-v1.c
+                COMMAND sh -c "wayland-scanner private-code < /usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml > xdg-decoration-unstable-v1.c"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+                VERBATIM)
+
+        add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/neuron/window/linux/xdg-decoration-unstable-v1-client.h
+                COMMAND sh -c "wayland-scanner client-header < /usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml > xdg-decoration-unstable-v1-client.h"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/neuron/window/linux/
+                VERBATIM)
+
+        target_sources(neuron_window
+                PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/xdg-decoration-unstable-v1.c
+                PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/neuron/window/linux/xdg-decoration-unstable-v1-client.h)
+
     endif ()
 
     target_compile_definitions(neuron_window PUBLIC NEURON_WINDOW_TARGET_LINUX)

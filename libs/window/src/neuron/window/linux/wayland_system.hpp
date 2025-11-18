@@ -12,7 +12,14 @@
 #error "Missing xdg-shell-client-protocol.h header. Make sure to generate it (use wayland-scanner on /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml)."
 #endif
 
+#if !__has_include("./xdg-decoration-unstable-v1-client.h")
+#error                                                                                                                                                                             \
+    "Missing xdg-decoration-unstable-v1-client.h header. Make sure to generate it (use wayland-scanner on /usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1-client.xml)."
+#endif
+
+#include "./xdg-decoration-unstable-v1-client.h"
 #include "./xdg-shell-client-protocol.h"
+#include <libdecor-0/libdecor.h>
 
 #define VK_USE_PLATFORM_WAYLAND_KHR
 
@@ -23,7 +30,7 @@ namespace neuron::window {
     class shm_file;
     class shm_pool;
     class shm_buffer;
-    class xdg_surface;
+    class decorated_surface;
 
     struct wayland_output_geometry {
         int         x, y;
@@ -44,10 +51,12 @@ namespace neuron::window {
         wayland_system();
         ~wayland_system() override;
 
-        [[nodiscard]] wl_compositor *compositor() const noexcept { return _compositor; }
-        [[nodiscard]] wl_shm        *shm() const noexcept { return _shm; }
-        [[nodiscard]] wl_output     *output() const noexcept { return _output; }
-        [[nodiscard]] wl_seat       *seat() const noexcept { return _seat; }
+        [[nodiscard]] wl_compositor              *compositor() const noexcept { return _compositor; }
+        [[nodiscard]] wl_shm                     *shm() const noexcept { return _shm; }
+        [[nodiscard]] wl_output                  *output() const noexcept { return _output; }
+        [[nodiscard]] wl_seat                    *seat() const noexcept { return _seat; }
+        [[nodiscard]] zxdg_decoration_manager_v1 *decoration_manager() const noexcept { return _decoration_manager; }
+
 
         [[nodiscard]] std::shared_ptr<shm_pool> create_shm_pool(std::size_t size);
         [[nodiscard]] std::shared_ptr<shm_pool> create_shm_pool(const std::shared_ptr<shm_file> &shm_file);
@@ -57,14 +66,18 @@ namespace neuron::window {
         const std::vector<const char *> &required_instance_extensions() override;
 
         [[nodiscard]] std::shared_ptr<wayland_surface> create_surface();
+        [[nodiscard]] wl_display                      *display() const noexcept { return _display; };
 
-        int dispatch() const;
+        int  dispatch() const;
+        void poll() override;
 
         int                            scale_factor() const { return _scale_factor; }
         const wayland_output_geometry &output_geometry() const { return _output_geometry; }
         const wayland_output_mode     &output_mode() const { return _output_mode; }
         const std::string             &output_name() const { return _output_name; }
         const std::string             &output_description() const { return _output_description; }
+
+        [[nodiscard]] ::libdecor *libdecor() const noexcept { return _libdecor; };
 
       private:
         wl_display  *_display;
@@ -75,11 +88,15 @@ namespace neuron::window {
         wl_output_listener   _output_listener;
         wl_seat_listener     _seat_listener;
 
-        wl_compositor *_compositor;
-        wl_shm        *_shm;
-        wl_output     *_output;
-        wl_seat       *_seat;
-        ::xdg_wm_base *_xdg_wm_base;
+        wl_compositor              *_compositor;
+        wl_shm                     *_shm;
+        wl_output                  *_output;
+        wl_seat                    *_seat;
+        ::xdg_wm_base              *_xdg_wm_base;
+        zxdg_decoration_manager_v1 *_decoration_manager;
+
+        libdecor_interface _libdecor_iface;
+        ::libdecor        *_libdecor;
 
         int                     _scale_factor = 1;
         wayland_output_geometry _output_geometry;
@@ -95,13 +112,14 @@ namespace neuron::window {
 
         void commit() const;
 
-        [[nodiscard]] std::shared_ptr<xdg_surface> xdg();
+        [[nodiscard]] std::shared_ptr<decorated_surface> decorate(int width, int height);
+        [[nodiscard]] wl_surface                        *surface() const noexcept { return _surface; }
 
       private:
         std::shared_ptr<wayland_system> _system;
         wl_surface                     *_surface;
 
-        friend class xdg_surface;
+        friend class decorated_surface;
     };
 
     class shm_file {
@@ -153,19 +171,30 @@ namespace neuron::window {
         wl_buffer                *_buffer = nullptr;
     };
 
-    class xdg_surface {
+    class decorated_surface {
       public:
-        explicit xdg_surface(const std::shared_ptr<wayland_surface> &surface);
-        ~xdg_surface();
+        decorated_surface(const std::shared_ptr<wayland_surface> &surface, int width, int height);
+        ~decorated_surface();
 
         void set_title(std::string_view title) const;
         void set_appid(std::string_view appid) const;
 
+        [[nodiscard]] inline int width() const noexcept { return _width; }
+        [[nodiscard]] inline int height() const noexcept { return _height; }
+
+        [[nodiscard]] inline bool should_close() const noexcept { return _wants_close; }
+
       private:
         std::shared_ptr<wayland_surface> _surface;
-        ::xdg_surface                   *_xdg_surface;
-        xdg_surface_listener             _xdg_surface_listener;
-        xdg_toplevel                    *_xdg_toplevel;
+
+        libdecor_frame_interface _libdecor_frame_iface;
+        libdecor_frame          *_frame;
+        libdecor_window_state    _window_state;
+        libdecor_state          *_state;
+
+        int _default_width, _default_height;
+        int _width, _height;
+        bool _wants_close = false;
     };
 
     class wayland_pointer {

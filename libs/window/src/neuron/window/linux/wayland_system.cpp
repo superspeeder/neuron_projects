@@ -9,6 +9,7 @@
 #include <ctime>
 
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -79,66 +80,56 @@ namespace neuron::window {
                 wl->_output = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, 2));
                 wl_output_add_listener(wl->_output, &wl->_output_listener, wl);
             } else if (std::strcmp(interface, wl_seat_interface.name) == 0) {
-                wl->_seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, 7));
+                wl->_seat = static_cast<wl_seat *>(wl_registry_bind(registry, name, &wl_seat_interface, 7));
                 wl_seat_add_listener(wl->_seat, &wl->_seat_listener, wl);
+            } else if (std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
+                wl->_decoration_manager = static_cast<zxdg_decoration_manager_v1 *>(wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1));
             }
         };
         _registry_listener.global_remove = +[](void *data, wl_registry *registry, uint32_t name) {};
 
         _xdg_wm_base_listener.ping = +[](void *data, ::xdg_wm_base *xdg_wm_base, uint32_t serial) { xdg_wm_base_pong(xdg_wm_base, serial); };
 
-        _output_listener.scale = +[](void* data, wl_output* output, int factor) {
-            auto *wl = static_cast<wayland_system *>(data);
+        _output_listener.scale = +[](void *data, wl_output *output, int factor) {
+            auto *wl          = static_cast<wayland_system *>(data);
             wl->_scale_factor = factor;
         };
-        _output_listener.geometry = +[](void* data, wl_output* output, int x, int y, int w, int h, int subpixel, const char* make, const char* model, int transform) {
-            auto *wl = static_cast<wayland_system *>(data);
-            wl->_output_geometry = wayland_output_geometry {
-                .x = x,
-                .y = y,
-                .width = w,
-                .height = h,
-                .subpixel = subpixel,
-                .make = make,
-                .model = model,
-                .transform = transform
-            };
+        _output_listener.geometry = +[](void *data, wl_output *output, int x, int y, int w, int h, int subpixel, const char *make, const char *model, int transform) {
+            auto *wl             = static_cast<wayland_system *>(data);
+            wl->_output_geometry = wayland_output_geometry{.x = x, .y = y, .width = w, .height = h, .subpixel = subpixel, .make = make, .model = model, .transform = transform};
         };
 
-        _output_listener.mode = +[](void* data, wl_output* output, uint32_t flags, int width, int height, int refresh) {
+        _output_listener.mode = +[](void *data, wl_output *output, uint32_t flags, int width, int height, int refresh) {
             if (flags & WL_OUTPUT_MODE_CURRENT) {
-                auto *wl = static_cast<wayland_system *>(data);
-                wl->_output_mode = {
-                    .flags = flags,
-                    .width = width,
-                    .height = height,
-                    .refresh = refresh
-                };
+                auto *wl         = static_cast<wayland_system *>(data);
+                wl->_output_mode = {.flags = flags, .width = width, .height = height, .refresh = refresh};
             }
         };
 
-        _output_listener.name = +[](void* data, wl_output* output, const char* name) {
-            auto *wl = static_cast<wayland_system *>(data);
+        _output_listener.name = +[](void *data, wl_output *output, const char *name) {
+            auto *wl         = static_cast<wayland_system *>(data);
             wl->_output_name = name;
         };
 
-        _output_listener.description = +[](void* data, wl_output* output, const char* description) {
-            auto *wl = static_cast<wayland_system *>(data);
+        _output_listener.description = +[](void *data, wl_output *output, const char *description) {
+            auto *wl                = static_cast<wayland_system *>(data);
             wl->_output_description = description;
         };
 
-        _output_listener.done = +[](void* data, wl_output* output) {};
+        _output_listener.done = +[](void *data, wl_output *output) {};
 
-        _seat_listener.name = +[](void* data, wl_seat* seat, const char* name) {
-            printf("seat name: %s\n", name);
-        };
+        _seat_listener.name = +[](void *data, wl_seat *seat, const char *name) {};
 
-        _seat_listener.capabilities = +[](void* data, wl_seat* seat, uint32_t capabilities) {
-            printf("seat caps: %d\n", capabilities);
-        };
+        _seat_listener.capabilities = +[](void *data, wl_seat *seat, uint32_t capabilities) {};
 
         wl_registry_add_listener(_registry, &_registry_listener, this);
         wl_display_roundtrip(_display);
+
+        _libdecor_iface = {
+            .error = +[](::libdecor *context, libdecor_error error, const char *message) { fprintf(stderr, "[libdecor] (%d) %s\n", error, message); },
+        };
+
+        _libdecor = libdecor_new(_display, &_libdecor_iface);
     }
     wayland_system::~wayland_system() {
         wl_display_disconnect(_display);
@@ -154,7 +145,7 @@ namespace neuron::window {
     }
 
     const std::vector<const char *> &wayland_system::required_instance_extensions() {
-        static std::vector<const char*> extensions = {
+        static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
         };
@@ -170,6 +161,60 @@ namespace neuron::window {
         return wl_display_dispatch(_display);
     }
 
+    // basically just what is in https://github.com/glfw/glfw/blob/master/src/wl_window.c, adapted to my needs
+    static bool flush_display(wl_display *display) {
+        while (wl_display_flush(display)) {
+            if (errno != EAGAIN) {
+            }
+
+            pollfd fd = {wl_display_get_fd(display), POLLOUT};
+            while (poll(&fd, 1, -1) == -1) {
+                if (errno != EINTR && errno != EAGAIN) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void wayland_system::poll() {
+
+        pollfd fd = {wl_display_get_fd(_display), POLLIN};
+
+        bool event = false;
+        while (!event) {
+            while (wl_display_prepare_read(_display) != 0) {
+                if (wl_display_dispatch_pending(_display) > 0) {
+                    return;
+                }
+            }
+
+            if (!flush_display(_display)) {
+                wl_display_cancel_read(_display);
+
+                // whoops looks like we lost wayland
+                return;
+            }
+
+            const int res = ::poll(&fd, 1, 0) > 0;
+            if (res == -1 && errno != EINTR && errno != EAGAIN) {
+                wl_display_cancel_read(_display);
+
+                // whoops looks like we lost wayland?
+                return;
+            }
+
+            if (fd.revents & POLLIN) {
+                wl_display_read_events(_display);
+                if (wl_display_dispatch_pending(_display) > 0) {
+                    event = true;
+                }
+            } else {
+                wl_display_cancel_read(_display);
+            }
+        }
+    }
+
     wayland_surface::wayland_surface(std::shared_ptr<wayland_system> system, wl_surface *surface) : _system(std::move(system)), _surface(surface) {}
 
     wayland_surface::~wayland_surface() {
@@ -180,8 +225,8 @@ namespace neuron::window {
         wl_surface_commit(_surface);
     }
 
-    std::shared_ptr<xdg_surface> wayland_surface::xdg() {
-        return std::make_shared<xdg_surface>(shared_from_this());
+    std::shared_ptr<decorated_surface> wayland_surface::decorate(int width, int height) {
+        return std::make_shared<decorated_surface>(shared_from_this(), width, height);
     }
 
     shm_file::shm_file(const std::size_t size) : _size(size) {
@@ -220,73 +265,109 @@ namespace neuron::window {
         wl_buffer_destroy(_buffer);
     }
 
-    xdg_surface::xdg_surface(const std::shared_ptr<wayland_surface> &surface) : _surface(surface) {
-        _xdg_surface_listener.configure = +[](void* data, ::xdg_surface* xdg_surface_, uint32_t serial) {
-            auto* s = static_cast<xdg_surface*>(data);
-            xdg_surface_ack_configure(xdg_surface_, serial);
-            s->_surface->commit();
+    decorated_surface::decorated_surface(const std::shared_ptr<wayland_surface> &surface, int width, int height)
+        : _surface(surface), _default_width(width), _default_height(height) {
+        _libdecor_frame_iface = {
+            .configure =
+                +[](libdecor_frame *frame, libdecor_configuration *configuration, void *user_data) {
+                    auto *s = static_cast<decorated_surface *>(user_data);
+                    if (!libdecor_configuration_get_window_state(configuration, &s->_window_state)) {
+                        s->_window_state = LIBDECOR_WINDOW_STATE_NONE;
+                    }
+
+                    int width, height;
+                    if (!libdecor_configuration_get_content_size(configuration, frame, &width, &height)) {
+                        width  = s->_default_width;
+                        height = s->_default_height;
+                    }
+
+                    width  = width == 0 ? s->_default_width : width;
+                    height = height == 0 ? s->_default_height : height;
+
+                    s->_width  = width;
+                    s->_height = height;
+
+
+                    s->_state = libdecor_state_new(s->_width, s->_height);
+                    libdecor_frame_commit(s->_frame, s->_state, configuration);
+                    libdecor_state_free(s->_state);
+
+                    if (libdecor_frame_is_floating(s->_frame)) {
+                        s->_default_width  = width;
+                        s->_default_height = height;
+                    }
+                },
+            .close =
+                +[](libdecor_frame *frame, void *user_data) {
+                    auto *s         = static_cast<decorated_surface *>(user_data);
+                    s->_wants_close = true;
+                },
+            .commit        = +[](libdecor_frame *frame, void *user_data) {},
+            .dismiss_popup = +[](libdecor_frame *frame, const char *seat_name, void *user_data) {},
         };
-        _xdg_surface = xdg_wm_base_get_xdg_surface(_surface->_system->xdg_wm_base(), _surface->_surface);
-        xdg_surface_add_listener(_xdg_surface, &_xdg_surface_listener, this);
-        _xdg_toplevel = xdg_surface_get_toplevel(_xdg_surface);
+        _frame = libdecor_decorate(_surface->_system->libdecor(), _surface->surface(), &_libdecor_frame_iface, this);
+
         set_title("Window");
+
+        if (_frame) {
+            libdecor_frame_map(_frame);
+        }
     }
 
-    xdg_surface::~xdg_surface() {
+    decorated_surface::~decorated_surface() {}
+
+    void decorated_surface::set_title(const std::string_view title) const {
+        libdecor_frame_set_title(_frame, title.data());
     }
 
-    void xdg_surface::set_title(const std::string_view title) const {
-        xdg_toplevel_set_title(_xdg_toplevel, title.data());
-    }
-
-    void xdg_surface::set_appid(const std::string_view appid) const {
-        xdg_toplevel_set_app_id(_xdg_toplevel, appid.data());
+    void decorated_surface::set_appid(const std::string_view appid) const {
+        libdecor_frame_set_app_id(_frame, appid.data());
     }
 
     wayland_pointer::wayland_pointer(const std::shared_ptr<wayland_system> &system) : _system(system) {
-        _pointer = wl_seat_get_pointer(system->seat());
-        _pointer_listener.enter = +[](void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer                = wl_seat_get_pointer(system->seat());
+        _pointer_listener.enter = +[](void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_enter(serial, surface, surface_x, surface_y);
         };
-        _pointer_listener.leave = +[](void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.leave = +[](void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_leave(serial, surface);
         };
-        _pointer_listener.motion = +[](void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.motion = +[](void *data, wl_pointer *pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_motion(time, surface_x, surface_y);
         };
-        _pointer_listener.button = +[](void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.button = +[](void *data, wl_pointer *pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_button(serial, time, button, state);
         };
-        _pointer_listener.axis = +[](void* data, wl_pointer* pointer, uint32_t time,uint32_t axis, wl_fixed_t value) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis = +[](void *data, wl_pointer *pointer, uint32_t time, uint32_t axis, wl_fixed_t value) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis(time, axis, value);
         };
-        _pointer_listener.frame = +[](void* data, wl_pointer* pointer) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.frame = +[](void *data, wl_pointer *pointer) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_frame();
         };
-        _pointer_listener.axis_source = +[](void* data, wl_pointer* pointer, uint32_t axis_source) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis_source = +[](void *data, wl_pointer *pointer, uint32_t axis_source) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis_source(axis_source);
         };
-        _pointer_listener.axis_stop = +[](void* data, wl_pointer* pointer, uint32_t time, uint32_t axis) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis_stop = +[](void *data, wl_pointer *pointer, uint32_t time, uint32_t axis) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis_stop(time, axis);
         };
-        _pointer_listener.axis_discrete = +[](void* data, wl_pointer* pointer, uint32_t axis, int32_t discrete) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis_discrete = +[](void *data, wl_pointer *pointer, uint32_t axis, int32_t discrete) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis_discrete(axis, discrete);
         };
-        _pointer_listener.axis_value120 = +[](void* data, wl_pointer* pointer, uint32_t axis, int32_t value_120) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis_value120 = +[](void *data, wl_pointer *pointer, uint32_t axis, int32_t value_120) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis_value_120(axis, value_120);
         };
-        _pointer_listener.axis_relative_direction = +[](void* data, wl_pointer* pointer, uint32_t axis, uint32_t direction) {
-            auto* p = static_cast<wayland_pointer*>(data);
+        _pointer_listener.axis_relative_direction = +[](void *data, wl_pointer *pointer, uint32_t axis, uint32_t direction) {
+            auto *p = static_cast<wayland_pointer *>(data);
             p->_axis_relative_direction(axis, direction);
         };
 

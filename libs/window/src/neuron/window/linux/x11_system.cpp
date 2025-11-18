@@ -8,13 +8,23 @@
 #include "x11_system.hpp"
 
 
-
 namespace neuron::window {
     const std::vector<const char *> &x11_system::required_instance_extensions() {
-        static std::vector<const char*> extensions = {
+        static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
         };
         return extensions;
     }
-}
+
+    void x11_system::poll() {
+        XEvent event{};
+        while (XPending(_display) > 0) {
+            XNextEvent(_display, &event);
+            _dispatch_event(event);
+        }
+    }
+
+    void x11_system::_dispatch_event(XEvent &event) {
+    }
+} // namespace neuron::window
