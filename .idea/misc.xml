@@ -9,6 +9,10 @@
       <file path="$PROJECT_DIR$/examples/src" />
       <file path="$PROJECT_DIR$/libs/assets/src" />
       <file path="$PROJECT_DIR$/libs/core/src" />
+      <file path="$PROJECT_DIR$/libs/window/src" />
     </sourceRoots>
+    <excludeRoots>
+      <file path="$PROJECT_DIR$/build" />
+    </excludeRoots>
   </component>
 </project>
