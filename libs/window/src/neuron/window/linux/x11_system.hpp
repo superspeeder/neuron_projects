@@ -10,19 +10,21 @@
 
 namespace neuron::window {
     class x11_system : public linux_system {
-    public:
-        x11_system() = default;
+      public:
+        x11_system()           = default;
         ~x11_system() override = default;
 
         const std::vector<const char *> &required_instance_extensions() override;
         void                             poll() override;
 
-      private:
-        Display* _display;
-        int _default_screen;
-        Window _root;
+        std::shared_ptr<window> create_window(int width, int height, std::string_view title) override { throw std::logic_error("Not yet implemented"); }
 
-        void _dispatch_event(XEvent& event);
+      private:
+        Display *_display;
+        int      _default_screen;
+        Window   _root;
+
+        void _dispatch_event(XEvent &event);
     };
-}
+} // namespace neuron::window
 #endif

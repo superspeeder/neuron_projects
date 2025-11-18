@@ -14,7 +14,7 @@
 
 
 #ifdef NEURON_WINDOW_TARGET_WINDOWS
-#error "Windows support not yet implemented
+#error "Windows support not yet implemented"
 #endif
 
 #ifdef NEURON_WINDOW_TARGET_LINUX
@@ -22,5 +22,12 @@
 #endif
 
 namespace neuron::window {
-
+    inline std::shared_ptr<system> create_system();
 }
+
+
+#if defined(NEURON_WINDOW_TARGET_LINUX)
+inline std::shared_ptr<neuron::window::system> neuron::window::create_system() {
+    return linux_system::create_system();
+}
+#endif

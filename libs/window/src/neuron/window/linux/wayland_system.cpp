@@ -2,6 +2,8 @@
 // Created by andy on 11/17/25.
 //
 
+#define VK_USE_PLATFORM_WAYLAND_KHR
+
 #include "wayland_system.hpp"
 
 #include <cerrno>
@@ -214,6 +216,9 @@ namespace neuron::window {
             }
         }
     }
+    std::shared_ptr<window> wayland_system::create_window(const int width, const int height, const std::string_view title) {
+        return std::make_shared<wayland_window>(create_surface()->decorate(width, height, title), std::static_pointer_cast<wayland_system>(shared_from_this()));
+    }
 
     wayland_surface::wayland_surface(std::shared_ptr<wayland_system> system, wl_surface *surface) : _system(std::move(system)), _surface(surface) {}
 
@@ -225,8 +230,15 @@ namespace neuron::window {
         wl_surface_commit(_surface);
     }
 
-    std::shared_ptr<decorated_surface> wayland_surface::decorate(int width, int height) {
+    std::shared_ptr<decorated_surface> wayland_surface::decorate(const int width, const int height) {
         return std::make_shared<decorated_surface>(shared_from_this(), width, height);
+    }
+
+    std::shared_ptr<decorated_surface> wayland_surface::decorate(const int width, const int height, const std::string_view title) {
+        auto decor = decorate(width, height);
+        decor->set_title(title);
+        decor->set_appid(title);
+        return decor;
     }
 
     shm_file::shm_file(const std::size_t size) : _size(size) {
@@ -385,4 +397,23 @@ namespace neuron::window {
     void wayland_pointer::_axis_discrete(uint32_t axis, int32_t discrete) {}
     void wayland_pointer::_axis_value_120(uint32_t axis, int32_t value_120) {}
     void wayland_pointer::_axis_relative_direction(uint32_t axis, uint32_t direction) {}
+
+    wayland_window::wayland_window(const std::shared_ptr<decorated_surface> &surface, const std::shared_ptr<wayland_system> &system) : window(system), _surface(surface) {
+        wl_display_roundtrip(system->display());
+        wl_display_roundtrip(system->display());
+    }
+
+    vk::raii::SurfaceKHR wayland_window::create_surface(const vk::raii::Instance &instance) {
+        VkWaylandSurfaceCreateInfoKHR surface_create_info{};
+        surface_create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        surface_create_info.display = std::static_pointer_cast<wayland_system>(_system)->display();
+        surface_create_info.surface = _surface->wlsurface()->surface();
+        auto proc = reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(instance.getProcAddr("vkCreateWaylandSurfaceKHR"));
+        VkSurfaceKHR surf;
+        if (proc(*instance, &surface_create_info, nullptr, &surf) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create surface!");
+        }
+
+        return vk::raii::SurfaceKHR(instance, surf);
+    }
 } // namespace neuron::window

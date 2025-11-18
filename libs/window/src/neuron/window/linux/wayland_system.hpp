@@ -79,6 +79,8 @@ namespace neuron::window {
 
         [[nodiscard]] ::libdecor *libdecor() const noexcept { return _libdecor; };
 
+        [[nodiscard]] std::shared_ptr<window> create_window(int width, int height, std::string_view title) override;
+
       private:
         wl_display  *_display;
         wl_registry *_registry;
@@ -113,6 +115,7 @@ namespace neuron::window {
         void commit() const;
 
         [[nodiscard]] std::shared_ptr<decorated_surface> decorate(int width, int height);
+        [[nodiscard]] std::shared_ptr<decorated_surface> decorate(int width, int height, std::string_view title);
         [[nodiscard]] wl_surface                        *surface() const noexcept { return _surface; }
 
       private:
@@ -184,6 +187,8 @@ namespace neuron::window {
 
         [[nodiscard]] inline bool should_close() const noexcept { return _wants_close; }
 
+        [[nodiscard]] const std::shared_ptr<wayland_surface> &wlsurface() const noexcept { return _surface; }
+
       private:
         std::shared_ptr<wayland_surface> _surface;
 
@@ -192,8 +197,8 @@ namespace neuron::window {
         libdecor_window_state    _window_state;
         libdecor_state          *_state;
 
-        int _default_width, _default_height;
-        int _width, _height;
+        int  _default_width, _default_height;
+        int  _width, _height;
         bool _wants_close = false;
     };
 
@@ -217,6 +222,24 @@ namespace neuron::window {
         void _axis_discrete(uint32_t axis, int32_t discrete);
         void _axis_value_120(uint32_t axis, int32_t value_120);
         void _axis_relative_direction(uint32_t axis, uint32_t direction);
+    };
+
+    class wayland_window : public window {
+      public:
+        wayland_window(const std::shared_ptr<decorated_surface> &surface, const std::shared_ptr<wayland_system> &system);
+        ~wayland_window() override = default;
+
+        bool          should_close() const override { return _surface->should_close(); }
+        window_size_t size() const override { return {_surface->width(), _surface->height()}; }
+
+        void set_title(const std::string_view title) override {
+            _surface->set_title(title);
+        }
+
+        vk::raii::SurfaceKHR create_surface(const vk::raii::Instance &instance) override;
+
+      private:
+        std::shared_ptr<decorated_surface> _surface;
     };
 } // namespace neuron::window
 #endif

@@ -14,6 +14,10 @@ namespace neuron::assets {
 
         [[nodiscard]] const std::string& text() const noexcept { return _text; }
 
+        static text_asset* load_from_text(const uint32_t id, const neuron::uuid &uuid, const std::string& text) {
+            return new text_asset(text, id, uuid);
+        }
+
       private:
         std::string _text;
     };

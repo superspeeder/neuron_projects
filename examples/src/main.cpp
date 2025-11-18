@@ -3,24 +3,18 @@
 //
 
 #include "neuron/uuid.hpp"
+#include "neuron/window/window.hpp"
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
-
-#include <bit>
 #include <iostream>
 #include <neuron/sparse_storage.hpp>
 #include <print>
-
-#include "neuron/window/linux/wayland_system.hpp"
 
 #include <chrono>
 #include <vulkan/vulkan_raii.hpp>
 
 struct testing_app_state {
-    std::shared_ptr<neuron::window::wayland_system>    winsys;
-    std::shared_ptr<neuron::window::wayland_surface>   window;
-    std::shared_ptr<neuron::window::decorated_surface> decorated_window;
-    std::shared_ptr<neuron::window::wayland_pointer>   pointer;
+    std::shared_ptr<neuron::window::system> winsys;
+    std::shared_ptr<neuron::window::window> window;
 
     vk::raii::Context        context;
     vk::raii::Instance       instance{nullptr};
@@ -36,15 +30,8 @@ struct testing_app_state {
     bool running = true;
 
     testing_app_state() {
-        winsys           = std::make_shared<neuron::window::wayland_system>();
-        window           = winsys->create_surface();
-        decorated_window = window->decorate(800, 600);
-        decorated_window->set_appid("Neuron Example App");
-        decorated_window->set_title("Neuron Example App");
-        wl_display_roundtrip(winsys->display());
-        wl_display_roundtrip(winsys->display());
-
-        pointer = std::make_shared<neuron::window::wayland_pointer>(winsys);
+        winsys = neuron::window::create_system();
+        window = winsys->create_window(800, 600, "Neuron Example App");
 
         {
             vk::ApplicationInfo appInfo{};
@@ -79,13 +66,7 @@ struct testing_app_state {
             device = gpu.createDevice(dci);
         }
 
-        {
-            vk::WaylandSurfaceCreateInfoKHR sci{};
-            sci.display = winsys->display();
-            sci.surface = window->surface();
-            surface     = instance.createWaylandSurfaceKHR(sci);
-        }
-
+        surface   = window->create_surface(instance);
         queue     = device.getQueue(0, 0);
         semaphore = device.createSemaphore({});
         fence     = device.createFence({vk::FenceCreateFlagBits::eSignaled});
@@ -93,7 +74,7 @@ struct testing_app_state {
         create_swapchain();
     }
 
-    int swapchain_width, swapchain_height;
+    neuron::window::window_size_t swapchain_size;
 
     void create_swapchain() {
         device.waitIdle();
@@ -108,14 +89,12 @@ struct testing_app_state {
         sci.imageFormat      = vk::Format::eB8G8R8A8Srgb;
         sci.imageSharingMode = vk::SharingMode::eExclusive;
         sci.imageUsage       = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
-        sci.imageExtent      = vk::Extent2D{static_cast<unsigned>(decorated_window->width()), static_cast<unsigned>(decorated_window->height())};
+        sci.imageExtent      = window->size();
         sci.minImageCount    = 3;
         if (*swapchain)
             sci.oldSwapchain = *swapchain;
 
-        swapchain_width  = decorated_window->width();
-        swapchain_height = decorated_window->height();
-
+        swapchain_size = sci.imageExtent;
 
         swapchain = device.createSwapchainKHR(sci);
         images    = swapchain.getImages();
@@ -167,7 +146,7 @@ struct testing_app_state {
 
     void mainloop() {
         winsys->poll();
-        while (running && !decorated_window->should_close()) {
+        while (running && !window->should_close()) {
             winsys->poll();
             update();
         }
@@ -175,17 +154,17 @@ struct testing_app_state {
 
     bool remake_swapchain = false;
 
-    using clock = std::chrono::high_resolution_clock;
-    using duration = std::chrono::duration<double>;
-    using time_point = std::chrono::time_point<clock, duration>;
+    using clock           = std::chrono::high_resolution_clock;
+    using duration        = std::chrono::duration<double>;
+    using time_point      = std::chrono::time_point<clock, duration>;
     time_point this_frame = clock::now();
     time_point last_frame = clock::now() - duration(1.0 / 60.0);
 
     void update() {
-        duration delta = this_frame - last_frame;
-        double fps = 1.0 / delta.count();
-        std::string s = "Window - " + std::to_string(fps);
-        decorated_window->set_title(s);
+        duration    delta = this_frame - last_frame;
+        double      fps   = 1.0 / delta.count();
+        std::string s     = "Window - " + std::to_string(fps);
+        window->set_title(s);
         auto _ = device.waitForFences(*fence, true, UINT64_MAX);
         device.resetFences(*fence);
         auto [result, index] = swapchain.acquireNextImage(UINT64_MAX, semaphore, fence);
@@ -198,8 +177,7 @@ struct testing_app_state {
         pi.setSwapchains(*swapchain);
         pi.setWaitSemaphores(*semaphore);
         result = queue.presentKHR(pi);
-        if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || swapchain_width != decorated_window->width() ||
-            swapchain_height != decorated_window->height()) {
+        if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || swapchain_size != window->size()) {
             create_swapchain();
         }
 
