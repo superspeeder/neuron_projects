@@ -14,3 +14,7 @@ target_compile_features(neuron_core PUBLIC cxx_std_23)
 if (LINUX)
     target_link_libraries(neuron_core PUBLIC uuid)
 endif()
+
+if (WIN32)
+    target_link_libraries(neuron_core PUBLIC Ole32.lib)
+endif()

@@ -10,7 +10,9 @@ add_library(neuron_window src/neuron/window/window.hpp
         src/neuron/window/linux/x11_system.cpp
         src/neuron/window/linux/wayland_system.hpp
         src/neuron/window/linux/wayland_system.cpp
-        src/neuron/window/linux/linux.cpp)
+        src/neuron/window/linux/linux.cpp
+        src/neuron/window/windows/windows.cpp
+        src/neuron/window/windows/windows.hpp)
 add_library(neuron::window ALIAS neuron_window)
 
 target_include_directories(neuron_window PUBLIC src/)

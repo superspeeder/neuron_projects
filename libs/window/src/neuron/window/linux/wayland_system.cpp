@@ -1,6 +1,7 @@
 //
 // Created by andy on 11/17/25.
 //
+#if defined(NEURON_WINDOW_TARGET_LINUX) && defined(NEURON_WINDOW_WAYLAND_SUPPORT)
 
 #define VK_USE_PLATFORM_WAYLAND_KHR
 
@@ -146,7 +147,7 @@ namespace neuron::window {
         return std::make_shared<shm_pool>(shm_file, std::static_pointer_cast<wayland_system>(shared_from_this()));
     }
 
-    const std::vector<const char *> &wayland_system::required_instance_extensions() {
+    const std::vector<const char *> &wayland_system::required_instance_extensions() const {
         static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
@@ -417,3 +418,4 @@ namespace neuron::window {
         return vk::raii::SurfaceKHR(instance, surf);
     }
 } // namespace neuron::window
+#endif

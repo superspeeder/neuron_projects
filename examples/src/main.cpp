@@ -5,12 +5,14 @@
 #include "neuron/uuid.hpp"
 #include "neuron/window/window.hpp"
 
-#include <iostream>
 #include <neuron/sparse_storage.hpp>
-#include <print>
 
+#include <print>
 #include <chrono>
 #include <vulkan/vulkan_raii.hpp>
+
+template<class... Ts>
+struct overloads : Ts... { using Ts::operator()...; };
 
 struct testing_app_state {
     std::shared_ptr<neuron::window::system> winsys;
@@ -45,6 +47,15 @@ struct testing_app_state {
         }
 
         gpu = instance.enumeratePhysicalDevices()[0];
+        auto support = winsys->get_presentation_support(instance, gpu, 0);
+        const auto visitor = overloads{
+            [](std::monostate) {
+                std::println("Present support: Unknown");
+            },
+            [](bool b) {
+                std::println("Present support: {}", b);
+            }
+        };
 
         {
             vk::DeviceCreateInfo      dci{};
@@ -72,6 +83,8 @@ struct testing_app_state {
         fence     = device.createFence({vk::FenceCreateFlagBits::eSignaled});
 
         create_swapchain();
+
+        window->set_on_redraw_callback([&] { update(); });
     }
 
     neuron::window::window_size_t swapchain_size;
@@ -120,7 +133,9 @@ struct testing_app_state {
         }
 
         for (const auto &image : images) {
-            cmd.clearColorImage(image, vk::ImageLayout::eTransferDstOptimal, vk::ClearColorValue(0.0f, 0.0f, 1.0f, 1.0f),
+            cmd.clearColorImage(image,
+                                vk::ImageLayout::eTransferDstOptimal,
+                                vk::ClearColorValue(0.0f, 0.0f, 1.0f, 1.0f),
                                 {vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)});
         }
 
@@ -145,10 +160,9 @@ struct testing_app_state {
     }
 
     void mainloop() {
-        winsys->poll();
         while (running && !window->should_close()) {
             winsys->poll();
-            update();
+            window->request_redraw();
         }
     }
 
@@ -167,17 +181,26 @@ struct testing_app_state {
         window->set_title(s);
         auto _ = device.waitForFences(*fence, true, UINT64_MAX);
         device.resetFences(*fence);
-        auto [result, index] = swapchain.acquireNextImage(UINT64_MAX, semaphore, fence);
-        if (result == vk::Result::eErrorOutOfDateKHR) {
+        if (swapchain_size != window->size()) {
             create_swapchain();
-            return;
         }
-        vk::PresentInfoKHR pi{};
-        pi.setImageIndices(index);
-        pi.setSwapchains(*swapchain);
-        pi.setWaitSemaphores(*semaphore);
-        result = queue.presentKHR(pi);
-        if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || swapchain_size != window->size()) {
+
+
+        try {
+            auto [result, index] = swapchain.acquireNextImage(UINT64_MAX, semaphore, fence);
+            if (result == vk::Result::eErrorOutOfDateKHR) {
+                create_swapchain();
+                return;
+            }
+            vk::PresentInfoKHR pi{};
+            pi.setImageIndices(index);
+            pi.setSwapchains(*swapchain);
+            pi.setWaitSemaphores(*semaphore);
+            result = queue.presentKHR(pi);
+            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || swapchain_size != window->size()) {
+                create_swapchain();
+            }
+        } catch (vk::OutOfDateKHRError &e) {
             create_swapchain();
         }
 

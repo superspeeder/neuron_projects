@@ -1,6 +1,7 @@
 //
 // Created by andy on 11/17/25.
 //
+#if defined(NEURON_WINDOW_TARGET_LINUX) && defined(NEURON_WINDOW_X11_SUPPORT)
 
 #define VK_USE_PLATFORM_XLIB_KHR
 #include <vulkan/vulkan_raii.hpp>
@@ -9,7 +10,7 @@
 
 
 namespace neuron::window {
-    const std::vector<const char *> &x11_system::required_instance_extensions() {
+    const std::vector<const char *> &x11_system::required_instance_extensions() const {
         static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
@@ -28,3 +29,5 @@ namespace neuron::window {
     void x11_system::_dispatch_event(XEvent &event) {
     }
 } // namespace neuron::window
+
+#endif

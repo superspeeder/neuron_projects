@@ -1,7 +1,7 @@
 //
 // Created by andy on 11/17/25.
 //
-
+#ifdef NEURON_WINDOW_TARGET_LINUX
 #include "./linux.hpp"
 
 #include <cstring>
@@ -29,3 +29,4 @@ namespace neuron::window {
         throw std::runtime_error("No supported display manager is running currently (or neuron::window hasn't been compiled with support for the running display manager).");
     }
 } // namespace neuron::window
+#endif
