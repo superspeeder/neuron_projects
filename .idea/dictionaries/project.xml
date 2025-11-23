@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>dynalloc</w>
+      <w>swapchain</w>
     </words>
   </dictionary>
 </component>

@@ -16,7 +16,7 @@ add_library(neuron_window src/neuron/window/window.hpp
 add_library(neuron::window ALIAS neuron_window)
 
 target_include_directories(neuron_window PUBLIC src/)
-target_link_libraries(neuron_window PUBLIC neuron_core Vulkan::Headers)
+target_link_libraries(neuron_window PUBLIC neuron_core neuron_render_interface Vulkan::Headers)
 
 if (LINUX)
     find_library(X11_LIB NAMES X11)

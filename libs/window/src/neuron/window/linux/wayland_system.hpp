@@ -63,7 +63,7 @@ namespace neuron::window {
 
         [[nodiscard]] ::xdg_wm_base *xdg_wm_base() const noexcept { return _xdg_wm_base; }
 
-        const std::vector<const char *> &required_instance_extensions() const override;
+        const std::vector<const char *> &required_extensions(render_interface::instance_extension) const override;
 
         [[nodiscard]] std::shared_ptr<wayland_surface> create_surface();
         [[nodiscard]] wl_display                      *display() const noexcept { return _display; };

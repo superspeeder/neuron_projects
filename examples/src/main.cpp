@@ -2,32 +2,35 @@
 // Created by andy on 11/15/25.
 //
 
-#include "neuron/uuid.hpp"
-#include "neuron/window/window.hpp"
+#include "neuron/render/surface.hpp"
+#include "neuron/render/swapchain.hpp"
+
+
+#include <neuron/uuid.hpp>
+#include <neuron/window/window.hpp>
 
 #include <neuron/sparse_storage.hpp>
 
-#include <print>
 #include <chrono>
+#include <print>
 #include <vulkan/vulkan_raii.hpp>
 
-template<class... Ts>
-struct overloads : Ts... { using Ts::operator()...; };
+#include <neuron/render/render.hpp>
+
+template <class... Ts>
+struct overloads : Ts... {
+    using Ts::operator()...;
+};
 
 struct testing_app_state {
-    std::shared_ptr<neuron::window::system> winsys;
-    std::shared_ptr<neuron::window::window> window;
+    std::shared_ptr<neuron::window::system>         winsys;
+    std::shared_ptr<neuron::window::window>         window;
+    std::shared_ptr<neuron::render::vulkan_context> vulkan_context;
+    std::shared_ptr<neuron::render::surface>        surface;
+    std::shared_ptr<neuron::render::swapchain>      swapchain;
 
-    vk::raii::Context        context;
-    vk::raii::Instance       instance{nullptr};
-    vk::raii::PhysicalDevice gpu{nullptr};
-    vk::raii::Device         device{nullptr};
-    vk::raii::SurfaceKHR     surface{nullptr};
-    vk::raii::SwapchainKHR   swapchain{nullptr};
-    std::vector<vk::Image>   images;
-    vk::raii::Queue          queue{nullptr};
-    vk::raii::Semaphore      semaphore{nullptr};
-    vk::raii::Fence          fence{nullptr};
+    vk::raii::Semaphore semaphore{nullptr};
+    vk::raii::Fence     fence{nullptr};
 
     bool running = true;
 
@@ -35,100 +38,55 @@ struct testing_app_state {
         winsys = neuron::window::create_system();
         window = winsys->create_window(800, 600, "Neuron Example App");
 
-        {
-            vk::ApplicationInfo appInfo{};
-            appInfo.apiVersion = vk::ApiVersion14;
+        vulkan_context = std::make_shared<neuron::render::vulkan_context>(winsys);
 
-            vk::InstanceCreateInfo ici{};
-            auto                   extensions = winsys->required_instance_extensions();
-            ici.setPEnabledExtensionNames(extensions);
-            ici.setPApplicationInfo(&appInfo);
-            instance = context.createInstance(ici);
-        }
+        surface   = std::make_shared<neuron::render::surface>(vulkan_context, window);
+        fence     = vulkan_context->create_fence(vk::FenceCreateFlagBits::eSignaled);
+        semaphore = vulkan_context->create_semaphore();
 
-        gpu = instance.enumeratePhysicalDevices()[0];
-        auto support = winsys->get_presentation_support(instance, gpu, 0);
-        const auto visitor = overloads{
-            [](std::monostate) {
-                std::println("Present support: Unknown");
-            },
-            [](bool b) {
-                std::println("Present support: {}", b);
-            }
-        };
-
-        {
-            vk::DeviceCreateInfo      dci{};
-            std::vector<const char *> extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
-            dci.setPEnabledExtensionNames(extensions);
-
-            std::vector<vk::DeviceQueueCreateInfo> queueCreateInfo{};
-            constexpr float                        priority = 1.0f;
-            queueCreateInfo.push_back(vk::DeviceQueueCreateInfo{{}, 0, 1, &priority});
-            dci.setQueueCreateInfos(queueCreateInfo);
-
-            vk::PhysicalDeviceFeatures2        features{};
-            vk::PhysicalDeviceVulkan13Features v13f{};
-            v13f.dynamicRendering = true;
-            features.pNext        = &v13f;
-            dci.pNext             = &features;
-
-            device = gpu.createDevice(dci);
-        }
-
-        surface   = window->create_surface(instance);
-        queue     = device.getQueue(0, 0);
-        semaphore = device.createSemaphore({});
-        fence     = device.createFence({vk::FenceCreateFlagBits::eSignaled});
-
-        create_swapchain();
+        swapchain = std::make_shared<neuron::render::swapchain>(surface, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst);
 
         window->set_on_redraw_callback([&] { update(); });
     }
 
-    neuron::window::window_size_t swapchain_size;
+    neuron::window::window_size_t swapchain_size{};
 
-    void create_swapchain() {
-        device.waitIdle();
-        vk::SwapchainCreateInfoKHR sci{};
-        sci.presentMode      = vk::PresentModeKHR::eFifo;
-        sci.surface          = *surface;
-        sci.clipped          = true;
-        sci.compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-        sci.preTransform     = vk::SurfaceTransformFlagBitsKHR::eIdentity;
-        sci.imageArrayLayers = 1;
-        sci.imageColorSpace  = vk::ColorSpaceKHR::eSrgbNonlinear;
-        sci.imageFormat      = vk::Format::eB8G8R8A8Srgb;
-        sci.imageSharingMode = vk::SharingMode::eExclusive;
-        sci.imageUsage       = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
-        sci.imageExtent      = window->size();
-        sci.minImageCount    = 3;
-        if (*swapchain)
-            sci.oldSwapchain = *swapchain;
-
-        swapchain_size = sci.imageExtent;
-
-        swapchain = device.createSwapchainKHR(sci);
-        images    = swapchain.getImages();
-
+    void recreate_swapchain() {
+        vulkan_context->device().waitIdle();
+        swapchain->refresh(window->size());
         draw_images();
     }
 
+    struct SimpleImageMode {
+        vk::ImageLayout layout;
+        vk::AccessFlags access;
+    };
+
+    static constexpr SimpleImageMode UNDEFINED_MODE{vk::ImageLayout::eUndefined, vk::AccessFlagBits::eNone};
+    static constexpr SimpleImageMode TRANSFER_WRITE_MODE{vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite};
+    static constexpr SimpleImageMode PRESENT_MODE{vk::ImageLayout::ePresentSrcKHR, vk::AccessFlagBits::eNone};
+
+    static vk::ImageMemoryBarrier simple_imb(const vk::Image image, const SimpleImageMode &old_mode, const SimpleImageMode &new_mode) {
+        vk::ImageMemoryBarrier imb{};
+        imb.image            = image;
+        imb.oldLayout        = old_mode.layout;
+        imb.newLayout        = new_mode.layout;
+        imb.srcAccessMask    = old_mode.access;
+        imb.dstAccessMask    = new_mode.access;
+        imb.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+
+        return imb;
+    }
+
     void draw_images() {
-        const vk::raii::CommandPool    pool(device, vk::CommandPoolCreateInfo({}, 0));
-        const vk::raii::CommandBuffers cmds(device, vk::CommandBufferAllocateInfo(*pool, vk::CommandBufferLevel::ePrimary, 1));
+        const vk::raii::CommandPool    pool = vulkan_context->create_command_pool(0);
+        const vk::raii::CommandBuffers cmds = vulkan_context->allocate_command_buffers(pool, 1);
 
         auto &cmd = cmds[0];
         cmd.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+        const auto &images = swapchain->images();
         for (const auto &image : images) {
-            vk::ImageMemoryBarrier imb{};
-            imb.image            = image;
-            imb.oldLayout        = vk::ImageLayout::eUndefined;
-            imb.newLayout        = vk::ImageLayout::eTransferDstOptimal;
-            imb.srcAccessMask    = vk::AccessFlagBits::eNone;
-            imb.dstAccessMask    = vk::AccessFlagBits::eTransferWrite;
-            imb.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+            auto imb = simple_imb(image, UNDEFINED_MODE, TRANSFER_WRITE_MODE);
             cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, imb);
         }
 
@@ -140,26 +98,21 @@ struct testing_app_state {
         }
 
         for (const auto &image : images) {
-            vk::ImageMemoryBarrier imb{};
-            imb.image            = image;
-            imb.oldLayout        = vk::ImageLayout::eTransferDstOptimal;
-            imb.newLayout        = vk::ImageLayout::ePresentSrcKHR;
-            imb.srcAccessMask    = vk::AccessFlagBits::eTransferWrite;
-            imb.dstAccessMask    = vk::AccessFlagBits::eNone;
-            imb.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+            auto imb = simple_imb(image, TRANSFER_WRITE_MODE, PRESENT_MODE);
             cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, imb);
         }
         cmd.end();
-        vk::raii::Fence fence_ = device.createFence({});
+        auto fence_ = vulkan_context->create_fence();
 
         vk::SubmitInfo si{};
         si.setCommandBuffers(*cmd);
 
-        queue.submit(si, fence_);
-        auto _ = device.waitForFences(*fence_, true, UINT64_MAX);
+        vulkan_context->queue().submit(si, fence_);
+        auto _ = vulkan_context->device().waitForFences(*fence_, true, UINT64_MAX);
     }
 
     void mainloop() {
+        printf("\n");
         while (running && !window->should_close()) {
             winsys->poll();
             window->request_redraw();
@@ -179,29 +132,23 @@ struct testing_app_state {
         double      fps   = 1.0 / delta.count();
         std::string s     = "Window - " + std::to_string(fps);
         window->set_title(s);
-        auto _ = device.waitForFences(*fence, true, UINT64_MAX);
-        device.resetFences(*fence);
+
+        auto _ = vulkan_context->device().waitForFences(*fence, true, UINT64_MAX);
+        vulkan_context->device().resetFences(*fence);
         if (swapchain_size != window->size()) {
-            create_swapchain();
+            recreate_swapchain();
         }
 
 
         try {
-            auto [result, index] = swapchain.acquireNextImage(UINT64_MAX, semaphore, fence);
-            if (result == vk::Result::eErrorOutOfDateKHR) {
-                create_swapchain();
-                return;
-            }
-            vk::PresentInfoKHR pi{};
-            pi.setImageIndices(index);
-            pi.setSwapchains(*swapchain);
-            pi.setWaitSemaphores(*semaphore);
-            result = queue.presentKHR(pi);
-            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || swapchain_size != window->size()) {
-                create_swapchain();
+            auto [index, suboptimal] = swapchain->acquire_next_image(*semaphore, *fence);
+            suboptimal               = swapchain->present(index, semaphore) || suboptimal;
+
+            if (suboptimal) {
+                recreate_swapchain();
             }
         } catch (vk::OutOfDateKHRError &e) {
-            create_swapchain();
+            recreate_swapchain();
         }
 
         last_frame = this_frame;
@@ -213,7 +160,7 @@ struct testing_app_state {
     testing_app_state &operator=(const testing_app_state &other)     = delete;
     testing_app_state &operator=(testing_app_state &&other) noexcept = delete;
 
-    ~testing_app_state() { device.waitIdle(); }
+    ~testing_app_state() { vulkan_context->device().waitIdle(); }
 };
 
 

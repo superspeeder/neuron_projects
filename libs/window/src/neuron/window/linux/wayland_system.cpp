@@ -147,7 +147,7 @@ namespace neuron::window {
         return std::make_shared<shm_pool>(shm_file, std::static_pointer_cast<wayland_system>(shared_from_this()));
     }
 
-    const std::vector<const char *> &wayland_system::required_instance_extensions() const {
+    const std::vector<const char *> &wayland_system::required_extensions(render_interface::instance_extension) const {
         static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,

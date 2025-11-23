@@ -10,7 +10,7 @@
 
 
 namespace neuron::window {
-    const std::vector<const char *> &x11_system::required_instance_extensions() const {
+    const std::vector<const char *> &x11_system::required_extensions(render_interface::instance_extension) const {
         static std::vector<const char *> extensions = {
             VK_KHR_SURFACE_EXTENSION_NAME,
             VK_KHR_XLIB_SURFACE_EXTENSION_NAME,

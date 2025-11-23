@@ -14,7 +14,7 @@ namespace neuron::window {
         x11_system()           = default;
         ~x11_system() override = default;
 
-        const std::vector<const char *> &required_instance_extensions() const override;
+        const std::vector<const char *> &required_extensions(render_interface::instance_extension) const override;
         void                             poll() override;
 
         std::shared_ptr<window> create_window(int width, int height, std::string_view title) override { throw std::logic_error("Not yet implemented"); }

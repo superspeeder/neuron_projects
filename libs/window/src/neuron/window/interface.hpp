@@ -9,10 +9,12 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include <neuron/render_interface/interface.hpp>
+
 namespace neuron::window {
     class window;
 
-    class system : public std::enable_shared_from_this<system> {
+    class system : public std::enable_shared_from_this<system>, public render_interface::extension_requirement_provider<render_interface::instance_extension> {
       public:
         system()          = default;
         virtual ~system() = default;
@@ -22,7 +24,7 @@ namespace neuron::window {
         system &operator=(const system &) = delete;
         system &operator=(system &&)      = delete;
 
-        virtual const std::vector<const char *> &required_instance_extensions() const = 0;
+        virtual const std::vector<const char *> &required_extensions(render_interface::instance_extension = {}) const = 0;
         virtual void                             poll()                               = 0;
 
         virtual std::shared_ptr<window>            create_window(int width, int height, std::string_view title) = 0;
@@ -68,7 +70,7 @@ namespace neuron::window {
         }
     };
 
-    class window : public std::enable_shared_from_this<window> {
+    class window : public std::enable_shared_from_this<window>, public render_interface::surface_provider {
       public:
         explicit window(std::shared_ptr<system> system) : _system(system) {}
         virtual ~window() = default;
@@ -83,8 +85,6 @@ namespace neuron::window {
         virtual window_size_t size() const = 0;
 
         virtual void set_title(std::string_view title) = 0;
-
-        virtual vk::raii::SurfaceKHR create_surface(const vk::raii::Instance &instance) = 0;
 
         inline std::function<void(bool &close)> set_on_close_callback(const std::function<void(bool &close)> &f) {
             auto old          = _on_close_request;

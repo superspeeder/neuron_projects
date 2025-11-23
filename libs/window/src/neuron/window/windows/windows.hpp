@@ -18,7 +18,7 @@ namespace neuron::window {
         windows_system();
         ~windows_system() override;
 
-        const std::vector<const char *> &required_instance_extensions() const override;
+        const std::vector<const char *> &required_extensions(render_interface::instance_extension) const override;
 
         void poll() override;
 
