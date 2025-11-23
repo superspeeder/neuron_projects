@@ -12,6 +12,8 @@ namespace neuron::render_interface {
         virtual ~surface_provider() = default;
 
         virtual vk::raii::SurfaceKHR create_surface(const vk::raii::Instance &instance) = 0;
+
+        virtual vk::Extent2D current_extent() const = 0;
     };
 
     struct instance_extension {};

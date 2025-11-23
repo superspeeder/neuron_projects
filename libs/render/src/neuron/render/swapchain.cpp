@@ -4,11 +4,21 @@
 
 #include "swapchain.hpp"
 
-namespace neuron::render {
-    swapchain::swapchain(const std::shared_ptr<surface> &surface, vk::ImageUsageFlags image_usage) : _surface(surface), _image_usage(image_usage), _context(surface->context()) {}
+#include <iostream>
+#include <ostream>
 
-    void swapchain::refresh(const vk::Extent2D& extent) {
-        _create_swapchain(extent);
+namespace neuron::render {
+    swapchain::swapchain(const std::shared_ptr<surface> &surface, vk::ImageUsageFlags image_usage) : _surface(surface), _image_usage(image_usage), _context(surface->context()) {
+        _create_swapchain();
+    }
+
+    void swapchain::refresh() {
+        _context->device().waitIdle();
+        _create_swapchain();
+    }
+
+    bool swapchain::mismatched_extent() const {
+        return _extent != _surface->extent();
     }
 
     std::pair<uint32_t, bool> swapchain::acquire_next_image(const vk::Semaphore semaphore, const vk::Fence fence) const {
@@ -24,7 +34,7 @@ namespace neuron::render {
         }
     }
 
-    void swapchain::_create_swapchain(const vk::Extent2D& extent) {
+    void swapchain::_create_swapchain() {
         vk::SwapchainCreateInfoKHR sci{};
         sci.imageUsage = _image_usage;
 
@@ -32,9 +42,7 @@ namespace neuron::render {
             sci.oldSwapchain = *_swapchain;
         }
 
-        if (_surface->configure_swapchain(sci)) {
-            sci.imageExtent = extent;
-        }
+        _surface->configure_swapchain(sci);
 
         _swapchain = vk::raii::SwapchainKHR(_context->device(), sci);
         _images    = _swapchain.getImages();

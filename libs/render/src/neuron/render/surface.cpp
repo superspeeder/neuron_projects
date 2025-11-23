@@ -21,10 +21,16 @@ namespace neuron::render {
         return _context->physical_device().getSurfaceSupportKHR(family, *_surface);
     }
 
-    bool surface::configure_swapchain(vk::SwapchainCreateInfoKHR &create_info) const {
-        auto formats = supported_formats();
-        // auto present_modes = supported_present_modes();
-        auto caps = capabilities();
+    void surface::configure_swapchain(vk::SwapchainCreateInfoKHR &create_info) const {
+        const auto formats       = supported_formats();
+        const auto present_modes = supported_present_modes();
+        const auto caps          = capabilities();
+
+        if (std::ranges::contains(present_modes, vk::PresentModeKHR::eMailbox)) {
+            create_info.presentMode = vk::PresentModeKHR::eMailbox;
+        } else {
+            create_info.presentMode = vk::PresentModeKHR::eFifo;
+        }
 
         auto min_image_count = caps.minImageCount + 1;
         if (caps.maxImageCount > 0 && caps.maxImageCount < min_image_count) {
@@ -51,9 +57,14 @@ namespace neuron::render {
         create_info.queueFamilyIndexCount = 0;
         create_info.compositeAlpha        = vk::CompositeAlphaFlagBitsKHR::eOpaque;
         create_info.preTransform          = caps.currentTransform;
-        create_info.presentMode           = vk::PresentModeKHR::eFifo;
         create_info.surface               = *_surface;
 
-        return caps.currentExtent.width == UINT32_MAX;
+        if (caps.currentExtent.width == UINT32_MAX) {
+            create_info.imageExtent = _surface_provider->current_extent();
+        }
+    }
+
+    vk::Extent2D surface::extent() const {
+        return _surface_provider->current_extent();
     }
 } // namespace neuron::render

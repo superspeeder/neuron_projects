@@ -45,10 +45,14 @@ namespace neuron::render {
         [[nodiscard]] vk::raii::Semaphore      create_semaphore() const;
         [[nodiscard]] vk::raii::Fence          create_fence(vk::FenceCreateFlags flags = {}) const;
         [[nodiscard]] vk::raii::CommandPool    create_command_pool(uint32_t family) const;
-        [[nodiscard]] vk::raii::CommandBuffers allocate_command_buffers(const vk::raii::CommandPool &pool, uint32_t count, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) const;
+        [[nodiscard]] vk::raii::CommandBuffers allocate_command_buffers(const vk::raii::CommandPool &pool, uint32_t count,
+                                                                        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) const;
 
         void wait_fence(vk::Fence fence) const;
         void wait_fence(const vk::raii::Fence &fence) const;
+
+        void reset_fence(vk::Fence fence) const;
+        void reset_fence(const vk::raii::Fence &fence) const;
 
       private:
         vk::raii::Context        _context{};

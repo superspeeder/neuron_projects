@@ -19,8 +19,9 @@ namespace neuron::render {
         swapchain &operator=(const swapchain &other)     = delete;
         swapchain &operator=(swapchain &&other) noexcept = delete;
 
-        void refresh(const vk::Extent2D& extent);
+        void refresh();
 
+        bool mismatched_extent() const;
 
         /**
          * Acquire the next image
@@ -36,6 +37,11 @@ namespace neuron::render {
 
         [[nodiscard]] const std::vector<vk::Image> &images() const { return _images; }
 
+        [[nodiscard]] vk::Format         format() const { return _format; }
+        [[nodiscard]] vk::ColorSpaceKHR  color_space() const { return _color_space; }
+        [[nodiscard]] vk::PresentModeKHR present_mode() const { return _present_mode; }
+        [[nodiscard]] vk::Extent2D       extent() const { return _extent; }
+
       private:
         std::shared_ptr<vulkan_context> _context;
         std::shared_ptr<surface>        _surface;
@@ -47,7 +53,7 @@ namespace neuron::render {
         vk::Extent2D                    _extent;
         std::vector<vk::Image>          _images;
 
-        void _create_swapchain(const vk::Extent2D& extent);
+        void _create_swapchain();
     };
 
 } // namespace neuron::render

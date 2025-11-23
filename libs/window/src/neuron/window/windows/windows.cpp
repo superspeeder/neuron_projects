@@ -64,7 +64,8 @@ namespace neuron::window {
     std::shared_ptr<window> windows_system::create_window(const int width, const int height, const std::string_view title) {
         return std::make_shared<windows_window>(std::static_pointer_cast<windows_system>(shared_from_this()), width, height, title);
     }
-    std::variant<bool, std::monostate> windows_system::get_presentation_support(const vk::raii::Instance& instance, vk::PhysicalDevice physical_device, uint32_t queue_family) const {
+    std::variant<bool, std::monostate> windows_system::get_presentation_support(const vk::raii::Instance &instance, vk::PhysicalDevice physical_device,
+                                                                                uint32_t queue_family) const {
         static PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR = nullptr;
         if (vkGetPhysicalDeviceWin32PresentationSupportKHR == nullptr) {
             vkGetPhysicalDeviceWin32PresentationSupportKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR>(
@@ -156,13 +157,18 @@ namespace neuron::window {
         case WM_WINDOWPOSCHANGED: {
             const auto &pos = *reinterpret_cast<WINDOWPOS *>(lParam);
             _pos            = {pos.x, pos.y};
-            _size           = {pos.cx, pos.cy};
+            RECT r;
+            GetClientRect(_window, &r);
+            _size = {r.right, r.bottom};
         } break;
 
         case WM_WINDOWPOSCHANGING: {
             const auto &pos = *reinterpret_cast<WINDOWPOS *>(lParam);
             _pos            = {pos.x, pos.y};
-            _size           = {pos.cx, pos.cy};
+            RECT r;
+            GetClientRect(_window, &r);
+            _size = {r.right, r.bottom};
+
             return DefWindowProcW(hwnd, uMsg, wParam, lParam);
         } break;
         case WM_PAINT: {

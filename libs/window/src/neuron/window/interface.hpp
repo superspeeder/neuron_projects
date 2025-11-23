@@ -101,6 +101,8 @@ namespace neuron::window {
         // not supported by all systems, so we can have this default to call _on_redraw
         virtual void request_redraw() { _on_redraw(); };
 
+        inline vk::Extent2D current_extent() const override { return size(); };
+
       protected:
         std::shared_ptr<system> _system;
 
