@@ -9,6 +9,9 @@
       <file path="$PROJECT_DIR$/examples/src" />
       <file path="$PROJECT_DIR$/libs/assets/src" />
       <file path="$PROJECT_DIR$/libs/core/src" />
+      <file path="$PROJECT_DIR$/libs/events/src" />
+      <file path="$PROJECT_DIR$/libs/render/src" />
+      <file path="$PROJECT_DIR$/libs/render_interface/include" />
       <file path="$PROJECT_DIR$/libs/window/src" />
     </sourceRoots>
     <excludeRoots>

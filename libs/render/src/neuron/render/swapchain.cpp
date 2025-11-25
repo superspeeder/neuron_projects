@@ -5,10 +5,9 @@
 #include "swapchain.hpp"
 
 #include <iostream>
-#include <ostream>
 
 namespace neuron::render {
-    swapchain::swapchain(const std::shared_ptr<surface> &surface, vk::ImageUsageFlags image_usage) : _surface(surface), _image_usage(image_usage), _context(surface->context()) {
+    swapchain::swapchain(const std::shared_ptr<surface> &surface, const vk::ImageUsageFlags image_usage) : _context(surface->context()), _surface(surface), _image_usage(image_usage) {
         _create_swapchain();
     }
 

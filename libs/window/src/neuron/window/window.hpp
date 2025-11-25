@@ -24,7 +24,35 @@
 #endif
 
 namespace neuron::window {
+    /**
+     * @brief Only use this if you know what you are doing. Creates a new system instance, does not wire it up as the global system.
+     *
+     * You should use init_system most of the time.
+     *
+     * @return
+     */
     inline std::shared_ptr<system> create_system();
+
+
+    /**
+     * @brief This is the intended system init function.
+     *
+     * This creates a new system instance and sets it as the global system.
+     *
+     * The caller must make sure that this doesn't go out of scope
+     *
+     * @return
+     */
+    inline std::shared_ptr<system> init_system() {
+        auto system = create_system();
+        global = system.get();
+        return system;
+    }
+
+    inline std::shared_ptr<window> create_window(const int width, const int height, const std::string_view title) {
+        return global->create_window(width, height, title);
+    }
+
 }
 
 

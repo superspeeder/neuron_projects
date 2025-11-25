@@ -7,7 +7,8 @@ add_library(neuron_render src/neuron/render/render.hpp src/neuron/render/render.
         src/neuron/render/swapchain.cpp
         src/neuron/render/swapchain.hpp
         src/neuron/render/surface_renderer.cpp
-        src/neuron/render/surface_renderer.hpp)
+        src/neuron/render/surface_renderer.hpp
+)
 target_include_directories(neuron_render PUBLIC src/)
 target_link_libraries(neuron_render PUBLIC neuron_core neuron_render_interface)
 target_compile_features(neuron_render PUBLIC cxx_std_23)

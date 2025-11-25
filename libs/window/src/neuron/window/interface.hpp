@@ -16,19 +16,20 @@ namespace neuron::window {
 
     class system : public std::enable_shared_from_this<system>, public render_interface::extension_requirement_provider<render_interface::instance_extension> {
       public:
-        system()          = default;
-        virtual ~system() = default;
+        system() = default;
+        ~system() override;
 
         system(const system &)            = delete;
         system(system &&)                 = delete;
         system &operator=(const system &) = delete;
         system &operator=(system &&)      = delete;
 
-        virtual const std::vector<const char *> &required_extensions(render_interface::instance_extension = {}) const = 0;
-        virtual void                             poll()                               = 0;
+        virtual void poll() = 0;
 
         virtual std::shared_ptr<window>            create_window(int width, int height, std::string_view title) = 0;
-        virtual std::variant<bool, std::monostate> get_presentation_support(const vk::raii::Instance& instance, vk::PhysicalDevice physical_device, uint32_t queue_family) const { return std::monostate{}; }
+        virtual std::variant<bool, std::monostate> get_presentation_support(const vk::raii::Instance &instance, vk::PhysicalDevice physical_device, uint32_t queue_family) const {
+            return std::monostate{};
+        }
     };
 
     struct window_size_t {
@@ -49,6 +50,8 @@ namespace neuron::window {
             swap(lhs.height, rhs.height);
         }
     };
+
+    extern system *global;
 
 
     struct window_pos_t {

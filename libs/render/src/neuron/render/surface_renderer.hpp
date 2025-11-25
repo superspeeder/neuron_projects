@@ -45,6 +45,14 @@ namespace neuron::render {
         surface_renderer(const std::shared_ptr<vulkan_context> &context, const std::shared_ptr<surface> &surface,
                          vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment);
 
+        inline static std::shared_ptr<surface_renderer> create(const std::shared_ptr<render_interface::surface_provider> &surface_provider, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment) {
+            return std::make_shared<surface_renderer>(context->shared_from_this(), surface_provider, usage);
+        }
+
+        inline static std::shared_ptr<surface_renderer> create(const std::shared_ptr<surface> &surface, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment) {
+            return std::make_shared<surface_renderer>(context->shared_from_this(), surface, usage);
+        }
+
         void render_with(const std::shared_ptr<renderer_base> &renderer);
 
         static constexpr uint32_t max_frames_in_flight = 2;

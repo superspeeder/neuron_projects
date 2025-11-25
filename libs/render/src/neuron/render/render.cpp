@@ -5,6 +5,8 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE;
 
 namespace neuron::render {
+    vulkan_context* context;
+
     vulkan_context::vulkan_context(const std::shared_ptr<render_interface::instance_extension_requirement_provider> &ext_provider, const setup_options &options) {
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
         {
@@ -41,10 +43,14 @@ namespace neuron::render {
             vk::DeviceCreateInfo dci{};
             dci.setPEnabledExtensionNames(pde);
 
-            std::vector<vk::DeviceQueueCreateInfo> queueCreateInfo{};
+            auto queue_families = _physical_device.getQueueFamilyProperties();
+
+            std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos{};
             constexpr float                        priority = 1.0f;
-            queueCreateInfo.push_back(vk::DeviceQueueCreateInfo{{}, 0, 1, &priority});
-            dci.setQueueCreateInfos(queueCreateInfo);
+            for (uint32_t i = 0; i < queue_families.size(); ++i) {
+                queueCreateInfos.push_back(vk::DeviceQueueCreateInfo{{}, i, 1, &priority});
+            }
+            dci.setQueueCreateInfos(queueCreateInfos);
 
             vk::PhysicalDeviceFeatures2        features{};
             vk::PhysicalDeviceVulkan13Features v13f{};
@@ -54,10 +60,12 @@ namespace neuron::render {
             dci.pNext             = &features;
 
             _device = _physical_device.createDevice(dci);
-        }
-        VULKAN_HPP_DEFAULT_DISPATCHER.init(*_device);
 
-        _queue = _device.getQueue(0, 0);
+            VULKAN_HPP_DEFAULT_DISPATCHER.init(*_device);
+            for (uint32_t i = 0; i < queue_families.size(); ++i) {
+                _queues.push_back(_device.getQueue(i, 0));
+            }
+        }
     }
 
     vk::raii::Semaphore vulkan_context::create_semaphore() const {
@@ -68,8 +76,8 @@ namespace neuron::render {
         return {_device, {flags}};
     }
 
-    vk::raii::CommandPool vulkan_context::create_command_pool(uint32_t family) const {
-        return {_device, {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, family}};
+    vk::raii::CommandPool vulkan_context::create_command_pool(uint32_t family, vk::CommandPoolCreateFlags flags) const {
+        return {_device, {flags, family}};
     }
 
     vk::raii::CommandBuffers vulkan_context::allocate_command_buffers(const vk::raii::CommandPool &pool, uint32_t count, vk::CommandBufferLevel level) const {

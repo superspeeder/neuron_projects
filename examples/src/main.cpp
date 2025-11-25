@@ -2,9 +2,12 @@
 // Created by andy on 11/15/25.
 //
 
+#include <neuron/window/interface.hpp>
+
+#include <neuron/render/render.hpp>
+
 #include <neuron/render/surface_renderer.hpp>
 #include <neuron/window/window.hpp>
-#include <neuron/render/render.hpp>
 
 #include <chrono>
 #include <vulkan/vulkan_raii.hpp>
@@ -36,20 +39,20 @@ class test_renderer : public neuron::render::renderer_base {
 
 struct testing_app_state {
     std::shared_ptr<neuron::window::system>           winsys;
-    std::shared_ptr<neuron::window::window>           window;
     std::shared_ptr<neuron::render::vulkan_context>   vulkan_context;
+
+    std::shared_ptr<neuron::window::window>           window;
     std::shared_ptr<neuron::render::surface_renderer> surface_renderer;
     std::shared_ptr<test_renderer>                    renderer;
 
     bool running = true;
 
     testing_app_state() {
-        winsys           = neuron::window::create_system();
-        window           = winsys->create_window(800, 600, "Neuron Example App");
-        vulkan_context   = std::make_shared<neuron::render::vulkan_context>(winsys);
-        surface_renderer = std::make_shared<neuron::render::surface_renderer>(vulkan_context,
-                                                                              window,
-                                                                              vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst);
+        winsys           = neuron::window::init_system();
+        vulkan_context   = neuron::render::init_context();
+
+        window           = neuron::window::create_window(800, 600, "Neuron Example App");
+        surface_renderer = neuron::render::surface_renderer::create(window, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst);
         renderer         = std::make_shared<test_renderer>();
 
         window->set_on_redraw_callback([&] { update(); });

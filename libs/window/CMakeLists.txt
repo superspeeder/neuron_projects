@@ -12,11 +12,12 @@ add_library(neuron_window src/neuron/window/window.hpp
         src/neuron/window/linux/wayland_system.cpp
         src/neuron/window/linux/linux.cpp
         src/neuron/window/windows/windows.cpp
-        src/neuron/window/windows/windows.hpp)
+        src/neuron/window/windows/windows.hpp
+        src/neuron/window/window.cpp)
 add_library(neuron::window ALIAS neuron_window)
 
 target_include_directories(neuron_window PUBLIC src/)
-target_link_libraries(neuron_window PUBLIC neuron_core neuron_render_interface Vulkan::Headers)
+target_link_libraries(neuron_window PUBLIC neuron_core neuron_render_interface neuron_events Vulkan::Headers)
 
 if (LINUX)
     find_library(X11_LIB NAMES X11)
