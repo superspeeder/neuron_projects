@@ -2,6 +2,9 @@
 // Created by andy on 11/15/25.
 //
 
+#include "neuron/events/events.hpp"
+
+
 #include <neuron/window/interface.hpp>
 
 #include <neuron/render/render.hpp>
@@ -10,12 +13,17 @@
 #include <neuron/window/window.hpp>
 
 #include <chrono>
+#include <iostream>
 #include <vulkan/vulkan_raii.hpp>
 
 
 template <class... Ts>
 struct overloads : Ts... {
     using Ts::operator()...;
+};
+
+struct shithead_event {
+    int i;
 };
 
 class test_renderer : public neuron::render::renderer_base {
@@ -38,8 +46,8 @@ class test_renderer : public neuron::render::renderer_base {
 };
 
 struct testing_app_state {
-    std::shared_ptr<neuron::window::system>           winsys;
-    std::shared_ptr<neuron::render::vulkan_context>   vulkan_context;
+    std::shared_ptr<neuron::window::system>         winsys;
+    std::shared_ptr<neuron::render::vulkan_context> vulkan_context;
 
     std::shared_ptr<neuron::window::window>           window;
     std::shared_ptr<neuron::render::surface_renderer> surface_renderer;
@@ -48,14 +56,19 @@ struct testing_app_state {
     bool running = true;
 
     testing_app_state() {
-        winsys           = neuron::window::init_system();
-        vulkan_context   = neuron::render::init_context();
+        winsys         = neuron::window::init_system();
+        vulkan_context = neuron::render::init_context();
 
         window           = neuron::window::create_window(800, 600, "Neuron Example App");
         surface_renderer = neuron::render::surface_renderer::create(window, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst);
         renderer         = std::make_shared<test_renderer>();
 
         window->set_on_redraw_callback([&] { update(); });
+
+        neuron::events::add_listener(+[](shithead_event *evt) { std::cout << "shithead: " << evt->i << std::endl; });
+
+        neuron::events::dispatch(shithead_event{4});
+        neuron::events::dispatch(shithead_event{6});
     }
 
     void mainloop() {

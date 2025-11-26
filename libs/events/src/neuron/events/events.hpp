@@ -17,9 +17,10 @@ namespace neuron::events {
         template <typename T>
         struct t_function_handle {
           private:
-            void (*_handle)(void *);
+            void (*_handle)(T *);
             friend class function_list;
 
+          public:
             constexpr t_function_handle(void (*handle)(T *)) : _handle(handle) {}
 
             template <typename T2>
@@ -141,6 +142,22 @@ namespace neuron::events {
             dispatch(std::type_index(typeid(D)), static_cast<void *>(event));
         }
 
+
+        template <typename D>
+        void dispatch(D &event)
+            requires(std::same_as<E, std::type_index>)
+        {
+            dispatch(std::type_index(typeid(D)), static_cast<void *>(&event));
+        }
+
+
+        template <typename D>
+        void dispatch(D &&event)
+            requires(std::same_as<E, std::type_index>)
+        {
+            dispatch(std::type_index(typeid(D)), static_cast<void *>(&event));
+        }
+
         template <typename D>
         typed_function_handle<D> add_listener(void (*listener)(D *))
             requires(std::same_as<E, std::type_index>)
@@ -154,6 +171,7 @@ namespace neuron::events {
         {
             remove_listener(std::type_index(typeid(D)), static_cast<function_handle>(handle));
         }
+
       private:
         std::unordered_map<E, detail::function_list> _listeners;
     };
@@ -161,4 +179,33 @@ namespace neuron::events {
     using typed_event_bus = event_bus<std::type_index>;
 
     extern event_bus<std::type_index> global_bus;
+
+
+    template <typename D>
+    typed_function_handle<D> add_listener(void (*listener)(D *)) {
+        return global_bus.add_listener(listener);
+    }
+
+    template <typename D>
+    void remove_listener(typed_function_handle<D> handle) {
+        global_bus.remove_listener(handle);
+    }
+
+
+    template <typename D>
+    void dispatch(D *event) {
+        global_bus.dispatch(event);
+    }
+
+
+    template <typename D>
+    void dispatch(D &event) {
+        global_bus.dispatch(event);
+    }
+
+
+    template <typename D>
+    void dispatch(D &&event) {
+        global_bus.dispatch(event);
+    }
 } // namespace neuron::events

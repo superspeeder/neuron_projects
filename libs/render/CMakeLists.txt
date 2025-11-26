@@ -10,7 +10,7 @@ add_library(neuron_render src/neuron/render/render.hpp src/neuron/render/render.
         src/neuron/render/surface_renderer.hpp
 )
 target_include_directories(neuron_render PUBLIC src/)
-target_link_libraries(neuron_render PUBLIC neuron_core neuron_render_interface)
+target_link_libraries(neuron_render PUBLIC neuron_core neuron_events neuron_render_interface)
 target_compile_features(neuron_render PUBLIC cxx_std_23)
 target_compile_definitions(neuron_render PUBLIC VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 

@@ -221,7 +221,14 @@ namespace neuron::window {
         return std::make_shared<wayland_window>(create_surface()->decorate(width, height, title), std::static_pointer_cast<wayland_system>(shared_from_this()));
     }
 
-    wayland_surface::wayland_surface(std::shared_ptr<wayland_system> system, wl_surface *surface) : _system(std::move(system)), _surface(surface) {}
+    wayland_surface::wayland_surface(std::shared_ptr<wayland_system> system, wl_surface *surface) : _system(std::move(system)), _surface(surface) {
+        _frame_callback = wl_surface_frame(_surface);
+        _frame_callback_listener.done = +[](void* data, wl_callback* _clbk, uint32_t cbkd) {
+            auto* wls = static_cast<wayland_surface *>(data);
+            wls->_refresh_callback();
+        };
+        wl_callback_add_listener(_frame_callback, &_frame_callback_listener, this);
+    }
 
     wayland_surface::~wayland_surface() {
         wl_surface_destroy(_surface);
@@ -240,6 +247,10 @@ namespace neuron::window {
         decor->set_title(title);
         decor->set_appid(title);
         return decor;
+    }
+
+    void wayland_surface::set_refresh_callback(const std::function<void()> &f) {
+        _refresh_callback = f;
     }
 
     shm_file::shm_file(const std::size_t size) : _size(size) {
@@ -300,8 +311,8 @@ namespace neuron::window {
                     s->_width  = width;
                     s->_height = height;
 
-
                     s->_state = libdecor_state_new(s->_width, s->_height);
+
                     libdecor_frame_commit(s->_frame, s->_state, configuration);
                     libdecor_state_free(s->_state);
 
@@ -322,12 +333,18 @@ namespace neuron::window {
 
         set_title("Window");
 
+        libdecor_frame_set_visibility(_frame, true);
+
         if (_frame) {
             libdecor_frame_map(_frame);
         }
+
+
     }
 
-    decorated_surface::~decorated_surface() {}
+    decorated_surface::~decorated_surface() {
+        libdecor_frame_close(_frame);
+    }
 
     void decorated_surface::set_title(const std::string_view title) const {
         libdecor_frame_set_title(_frame, title.data());
@@ -400,16 +417,18 @@ namespace neuron::window {
     void wayland_pointer::_axis_relative_direction(uint32_t axis, uint32_t direction) {}
 
     wayland_window::wayland_window(const std::shared_ptr<decorated_surface> &surface, const std::shared_ptr<wayland_system> &system) : window(system), _surface(surface) {
+        _surface->wlsurface()->set_refresh_callback([this] { this->_on_redraw(); });
+
         wl_display_roundtrip(system->display());
         wl_display_roundtrip(system->display());
     }
 
     vk::raii::SurfaceKHR wayland_window::create_surface(const vk::raii::Instance &instance) {
         VkWaylandSurfaceCreateInfoKHR surface_create_info{};
-        surface_create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        surface_create_info.sType   = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
         surface_create_info.display = std::static_pointer_cast<wayland_system>(_system)->display();
         surface_create_info.surface = _surface->wlsurface()->surface();
-        auto proc = reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(instance.getProcAddr("vkCreateWaylandSurfaceKHR"));
+        auto         proc           = reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(instance.getProcAddr("vkCreateWaylandSurfaceKHR"));
         VkSurfaceKHR surf;
         if (proc(*instance, &surface_create_info, nullptr, &surf) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create surface!");

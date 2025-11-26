@@ -118,9 +118,14 @@ namespace neuron::window {
         [[nodiscard]] std::shared_ptr<decorated_surface> decorate(int width, int height, std::string_view title);
         [[nodiscard]] wl_surface                        *surface() const noexcept { return _surface; }
 
+        void set_refresh_callback(const std::function<void()> &f);
+
       private:
         std::shared_ptr<wayland_system> _system;
         wl_surface                     *_surface;
+        wl_callback                    *_frame_callback;
+        wl_callback_listener            _frame_callback_listener;
+        std::function<void()>           _refresh_callback;
 
         friend class decorated_surface;
     };
@@ -232,9 +237,7 @@ namespace neuron::window {
         bool          should_close() const override { return _surface->should_close(); }
         window_size_t size() const override { return {_surface->width(), _surface->height()}; }
 
-        void set_title(const std::string_view title) override {
-            _surface->set_title(title);
-        }
+        void set_title(const std::string_view title) override { _surface->set_title(title); }
 
         vk::raii::SurfaceKHR create_surface(const vk::raii::Instance &instance) override;
 

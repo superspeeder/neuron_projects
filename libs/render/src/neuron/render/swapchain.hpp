@@ -7,10 +7,12 @@
 #include "neuron/render/render.hpp"
 #include "neuron/render/surface.hpp"
 
+#include <neuron/events/signal.hpp>
+
 namespace neuron::render {
 
     class swapchain {
-      public:
+    public:
         explicit swapchain(const std::shared_ptr<surface> &surface, vk::ImageUsageFlags image_usage = vk::ImageUsageFlagBits::eColorAttachment);
         ~swapchain() = default;
 
@@ -41,6 +43,8 @@ namespace neuron::render {
         [[nodiscard]] vk::ColorSpaceKHR  color_space() const { return _color_space; }
         [[nodiscard]] vk::PresentModeKHR present_mode() const { return _present_mode; }
         [[nodiscard]] vk::Extent2D       extent() const { return _extent; }
+
+        events::signal<swapchain*> on_recreated{};
 
       private:
         std::shared_ptr<vulkan_context> _context;

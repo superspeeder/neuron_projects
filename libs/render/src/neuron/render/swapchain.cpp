@@ -14,6 +14,7 @@ namespace neuron::render {
     void swapchain::refresh() {
         _context->device().waitIdle();
         _create_swapchain();
+        on_recreated(this);
     }
 
     bool swapchain::mismatched_extent() const {

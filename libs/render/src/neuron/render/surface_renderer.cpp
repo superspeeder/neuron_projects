@@ -13,6 +13,26 @@ namespace neuron::render {
         }
 
         _command_buffers = _context->allocate_command_buffers(_command_pool, max_frames_in_flight);
+
+        _swapchain->on_recreated += {+[](void *userdata, swapchain *swc) {
+                                         auto *sr = static_cast<surface_renderer *>(userdata);
+                                         sr->_image_views.clear();
+                                         for (const auto &image : swc->images()) {
+                                             sr->_image_views.emplace_back(render::context->device(),
+                                                                           vk::ImageViewCreateInfo({},
+                                                                                                   image,
+                                                                                                   vk::ImageViewType::e2D,
+                                                                                                   swc->format(),
+                                                                                                   vk::ComponentMapping{
+                                                                                                       vk::ComponentSwizzle::eR,
+                                                                                                       vk::ComponentSwizzle::eG,
+                                                                                                       vk::ComponentSwizzle::eB,
+                                                                                                       vk::ComponentSwizzle::eA,
+                                                                                                   },
+                                                                                                   vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)));
+                                         }
+                                     },
+                                     this};
     }
 
     surface_renderer::surface_renderer(const std::shared_ptr<vulkan_context> &context, const std::shared_ptr<surface> &surface, vk::ImageUsageFlags usage)

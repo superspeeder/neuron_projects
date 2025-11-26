@@ -17,7 +17,8 @@ namespace neuron::render {
         vk::raii::Fence     in_flight;
 
         explicit sync_resources(const std::shared_ptr<vulkan_context> &context)
-            : image_available(context->device(), vk::SemaphoreCreateInfo{}), render_finished(context->device(), vk::SemaphoreCreateInfo{}), in_flight(context->device(), {vk::FenceCreateFlagBits::eSignaled}) {}
+            : image_available(context->device(), vk::SemaphoreCreateInfo{}), render_finished(context->device(), vk::SemaphoreCreateInfo{}),
+              in_flight(context->device(), {vk::FenceCreateFlagBits::eSignaled}) {}
 
         sync_resources(const sync_resources &other)                = delete;
         sync_resources(sync_resources &&other) noexcept            = delete;
@@ -45,7 +46,8 @@ namespace neuron::render {
         surface_renderer(const std::shared_ptr<vulkan_context> &context, const std::shared_ptr<surface> &surface,
                          vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment);
 
-        inline static std::shared_ptr<surface_renderer> create(const std::shared_ptr<render_interface::surface_provider> &surface_provider, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment) {
+        inline static std::shared_ptr<surface_renderer> create(const std::shared_ptr<render_interface::surface_provider> &surface_provider,
+                                                               vk::ImageUsageFlags                                        usage = vk::ImageUsageFlagBits::eColorAttachment) {
             return std::make_shared<surface_renderer>(context->shared_from_this(), surface_provider, usage);
         }
 
@@ -65,6 +67,8 @@ namespace neuron::render {
         vk::raii::CommandPool                        _command_pool;
         std::vector<vk::raii::CommandBuffer>         _command_buffers;
         uint32_t                                     _current_frame = 0;
+
+        std::vector<vk::raii::ImageView> _image_views;
     };
 
 
