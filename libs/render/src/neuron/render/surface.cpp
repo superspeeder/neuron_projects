@@ -4,6 +4,8 @@
 
 #include "surface.hpp"
 
+#include <iostream>
+
 namespace neuron::render {
     std::vector<vk::PresentModeKHR> surface::supported_present_modes() const {
         return _context->physical_device().getSurfacePresentModesKHR(*_surface);

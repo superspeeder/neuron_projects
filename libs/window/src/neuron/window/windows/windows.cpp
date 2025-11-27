@@ -37,6 +37,7 @@ namespace neuron::window {
         wc.lpszClassName = WCNAME;
         wc.style         = CS_VREDRAW | CS_HREDRAW;
         wc.hInstance     = _instance;
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
         RegisterClassExW(&wc);
     }
 
@@ -129,8 +130,14 @@ namespace neuron::window {
         return vk::raii::SurfaceKHR(instance, surf);
     }
     void windows_window::request_redraw() {
-        RedrawWindow(_window, nullptr, nullptr, RDW_INVALIDATE);
+        RedrawWindow(_window, nullptr, nullptr, RDW_INTERNALPAINT);
     }
+
+    // vk::Extent2D windows_window::current_extent() const {
+    //     RECT r;
+    //     GetClientRect(_window, &r);
+    //     return {static_cast<unsigned>(r.right), static_cast<unsigned>(r.bottom)};
+    // }
 
     LRESULT windows_window::window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         if (uMsg == WM_CREATE) {
@@ -154,14 +161,7 @@ namespace neuron::window {
             _should_close = true;
             _on_close_request(_should_close);
             break;
-        case WM_WINDOWPOSCHANGED: {
-            const auto &pos = *reinterpret_cast<WINDOWPOS *>(lParam);
-            _pos            = {pos.x, pos.y};
-            RECT r;
-            GetClientRect(_window, &r);
-            _size = {r.right, r.bottom};
-        } break;
-
+        case WM_WINDOWPOSCHANGED:
         case WM_WINDOWPOSCHANGING: {
             const auto &pos = *reinterpret_cast<WINDOWPOS *>(lParam);
             _pos            = {pos.x, pos.y};
@@ -172,8 +172,10 @@ namespace neuron::window {
             return DefWindowProcW(hwnd, uMsg, wParam, lParam);
         } break;
         case WM_PAINT: {
-            _on_redraw();
-            ValidateRect(_window, nullptr);
+            if (_size.width != 0 && _size.height != 0) {
+                _on_redraw();
+            }
+            return DefWindowProcW(hwnd, uMsg, wParam, lParam);
         } break;
         default:
             return DefWindowProcW(hwnd, uMsg, wParam, lParam);

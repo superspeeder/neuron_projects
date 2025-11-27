@@ -4,6 +4,8 @@
 
 #include "surface_renderer.hpp"
 
+#include <iostream>
+
 namespace neuron::render {
     surface_renderer::surface_renderer(const std::shared_ptr<vulkan_context> &context, const std::shared_ptr<render_interface::surface_provider> &surface_provider,
                                        vk::ImageUsageFlags usage)
@@ -14,25 +16,14 @@ namespace neuron::render {
 
         _command_buffers = _context->allocate_command_buffers(_command_pool, max_frames_in_flight);
 
-        _swapchain->on_recreated += {+[](void *userdata, swapchain *swc) {
-                                         auto *sr = static_cast<surface_renderer *>(userdata);
-                                         sr->_image_views.clear();
-                                         for (const auto &image : swc->images()) {
-                                             sr->_image_views.emplace_back(render::context->device(),
-                                                                           vk::ImageViewCreateInfo({},
-                                                                                                   image,
-                                                                                                   vk::ImageViewType::e2D,
-                                                                                                   swc->format(),
-                                                                                                   vk::ComponentMapping{
-                                                                                                       vk::ComponentSwizzle::eR,
-                                                                                                       vk::ComponentSwizzle::eG,
-                                                                                                       vk::ComponentSwizzle::eB,
-                                                                                                       vk::ComponentSwizzle::eA,
-                                                                                                   },
-                                                                                                   vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)));
-                                         }
-                                     },
-                                     this};
+        create_image_views();
+        _swapchain->on_recreated += {
+            +[](void *userdata, swapchain *swc) {
+                auto *sr = static_cast<surface_renderer *>(userdata);
+                sr->create_image_views();
+            },
+            this,
+        };
     }
 
     surface_renderer::surface_renderer(const std::shared_ptr<vulkan_context> &context, const std::shared_ptr<surface> &surface, vk::ImageUsageFlags usage)
@@ -42,6 +33,15 @@ namespace neuron::render {
         }
 
         _command_buffers = _context->allocate_command_buffers(_command_pool, max_frames_in_flight);
+
+        create_image_views();
+        _swapchain->on_recreated += {
+            +[](void *userdata, swapchain *swc) {
+                auto *sr = static_cast<surface_renderer *>(userdata);
+                sr->create_image_views();
+            },
+            this,
+        };
     }
 
 
@@ -49,15 +49,22 @@ namespace neuron::render {
         const auto &sync = *_syncs[_current_frame];
         _context->wait_fence(sync.in_flight);
 
+        if (_swapchain->mismatched_extent()) {
+            _swapchain->refresh();
+        }
+
         const auto &cmd = _command_buffers[_current_frame];
 
         const auto [image_index, suboptimal] = _swapchain->acquire_next_image(*sync.image_available, nullptr);
-        const frame_resources fr{.sync        = sync,
-                                 .cmd         = cmd,
-                                 .image       = _swapchain->images()[image_index],
-                                 .image_index = image_index,
-                                 .extent      = _swapchain->extent(),
-                                 .format      = _swapchain->format()};
+        const frame_resources fr{
+            .sync        = sync,
+            .cmd         = cmd,
+            .image       = _swapchain->images()[image_index],
+            .image_index = image_index,
+            .extent      = _swapchain->extent(),
+            .format      = _swapchain->format(),
+            .image_view  = *_image_views[image_index],
+        };
 
         _context->reset_fence(sync.in_flight);
 
@@ -88,11 +95,31 @@ namespace neuron::render {
 
         // ReSharper disable once CppTooWideScopeInitStatement
         const auto recreate = _swapchain->present(image_index, *sync.render_finished);
-        if (recreate || suboptimal || _swapchain->mismatched_extent()) {
+        if (recreate || suboptimal) {
             _swapchain->refresh();
         }
 
         _current_frame = (_current_frame + 1) % max_frames_in_flight;
+    }
+    void surface_renderer::create_image_views() {
+        _image_views.clear();
+        const auto &format = _swapchain->format();
+        for (const auto &image : _swapchain->images()) {
+            _image_views.emplace_back(context->device(),
+                                      vk::ImageViewCreateInfo{
+                                          {},
+                                          image,
+                                          vk::ImageViewType::e2D,
+                                          format,
+                                          vk::ComponentMapping{
+                                              vk::ComponentSwizzle::eR,
+                                              vk::ComponentSwizzle::eG,
+                                              vk::ComponentSwizzle::eB,
+                                              vk::ComponentSwizzle::eA,
+                                          },
+                                          vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1),
+                                      });
+        }
     }
 
     void renderer_base::pre_render_frame(const frame_resources &frame_resources) {
@@ -123,5 +150,25 @@ namespace neuron::render {
         imb2.dstStageMask     = final_stage;
 
         cmd.pipelineBarrier2({{}, {}, {}, imb2});
+    }
+
+    void dynamic_rendering::pre_render_frame(const frame_resources &frame_resources, const renderer_base *renderer) {
+        const auto                 &cmd = frame_resources.cmd;
+        vk::RenderingAttachmentInfo color_attachment{
+            frame_resources.image_view,
+            renderer->render_layout,
+            vk::ResolveModeFlagBits::eNone,
+            {},
+            vk::ImageLayout::eUndefined,
+            load_op,
+            store_op,
+            clear_color,
+        };
+        cmd.beginRendering(vk::RenderingInfo({}, vk::Rect2D({0, 0}, frame_resources.extent), 1, 0, color_attachment));
+    }
+
+    void dynamic_rendering::post_render_frame(const frame_resources &frame_resources, const renderer_base *renderer) {
+        const auto                 &cmd = frame_resources.cmd;
+        cmd.endRendering();
     }
 } // namespace neuron::render

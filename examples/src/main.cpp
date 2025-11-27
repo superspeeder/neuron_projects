@@ -26,22 +26,20 @@ struct shithead_event {
     int i;
 };
 
-class test_renderer : public neuron::render::renderer_base {
+class test_renderer : public neuron::render::renderer<neuron::render::dynamic_rendering> {
   public:
-    test_renderer() : renderer_base() {
-        render_layout = vk::ImageLayout::eTransferDstOptimal;
-        render_access = vk::AccessFlagBits2::eTransferWrite;
-        render_stage  = vk::PipelineStageFlagBits2::eTransfer;
+    test_renderer() {
+        render_layout = vk::ImageLayout::eColorAttachmentOptimal;
+        render_access = vk::AccessFlagBits2::eColorAttachmentWrite;
+        render_stage  = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        get_mixin<0>()->clear_color = vk::ClearColorValue(1.0f, 0.0f, 0.0f, 1.0f);
+
     };
 
     ~test_renderer() override = default;
 
     void render_frame(const neuron::render::frame_resources &frame_resources) override {
-        const auto &cmd = frame_resources.cmd;
-        cmd.clearColorImage(frame_resources.image,
-                            render_layout,
-                            vk::ClearColorValue(0.0f, 1.0f, 1.0f, 1.0f),
-                            {vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)});
+
     }
 };
 

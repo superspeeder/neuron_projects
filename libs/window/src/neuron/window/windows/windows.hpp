@@ -44,6 +44,8 @@ namespace neuron::window {
 
         void request_redraw() override;
 
+        // inline vk::Extent2D current_extent() const override;
+
       private:
         HWND          _window;
         bool          _should_close = false;
