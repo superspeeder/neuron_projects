@@ -5,7 +5,8 @@ add_library(neuron_core src/neuron/core.cpp src/neuron/core.hpp src/neuron/spars
         src/neuron/worker_pool.hpp
         src/neuron/worker_control_sync.hpp
         src/neuron/uuid.hpp
-        src/neuron/uuid.cpp)
+        src/neuron/uuid.cpp
+        src/neuron/clock.hpp)
 add_library(neuron::core ALIAS neuron_core)
 
 target_include_directories(neuron_core PUBLIC src)

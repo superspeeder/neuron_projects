@@ -2,6 +2,7 @@
 // Created by andy on 11/15/25.
 //
 
+#include "neuron/clock.hpp"
 #include "neuron/events/events.hpp"
 
 
@@ -16,31 +17,13 @@
 #include <iostream>
 #include <vulkan/vulkan_raii.hpp>
 
-
-template <class... Ts>
-struct overloads : Ts... {
-    using Ts::operator()...;
-};
-
-struct shithead_event {
-    int i;
-};
-
 class test_renderer : public neuron::render::renderer<neuron::render::dynamic_rendering> {
   public:
-    test_renderer() {
-        render_layout = vk::ImageLayout::eColorAttachmentOptimal;
-        render_access = vk::AccessFlagBits2::eColorAttachmentWrite;
-        render_stage  = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
-        get_mixin<0>()->clear_color = vk::ClearColorValue(1.0f, 0.0f, 0.0f, 1.0f);
-
-    };
+    test_renderer() {};
 
     ~test_renderer() override = default;
 
-    void render_frame(const neuron::render::frame_resources &frame_resources) override {
-
-    }
+    void render_frame(const neuron::render::frame_resources &frame_resources) override {}
 };
 
 struct testing_app_state {
@@ -51,6 +34,8 @@ struct testing_app_state {
     std::shared_ptr<neuron::render::surface_renderer> surface_renderer;
     std::shared_ptr<test_renderer>                    renderer;
 
+    neuron::clock clock;
+
     bool running = true;
 
     testing_app_state() {
@@ -59,14 +44,10 @@ struct testing_app_state {
 
         window           = neuron::window::create_window(800, 600, "Neuron Example App");
         surface_renderer = neuron::render::surface_renderer::create(window, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst);
+
         renderer         = std::make_shared<test_renderer>();
 
         window->set_on_redraw_callback([&] { update(); });
-
-        neuron::events::add_listener(+[](shithead_event *evt) { std::cout << "shithead: " << evt->i << std::endl; });
-
-        neuron::events::dispatch(shithead_event{4});
-        neuron::events::dispatch(shithead_event{6});
     }
 
     void mainloop() {
@@ -76,17 +57,11 @@ struct testing_app_state {
         }
     }
 
-    using clock           = std::chrono::high_resolution_clock;
-    using duration        = std::chrono::duration<double>;
-    using time_point      = std::chrono::time_point<clock, duration>;
-    time_point this_frame = clock::now();
-    time_point last_frame = clock::now() - duration(1.0 / 60.0);
-
     void update() {
         surface_renderer->render_with(renderer);
 
-        last_frame = this_frame;
-        this_frame = clock::now();
+        clock.tick();
+
     }
 
     testing_app_state(const testing_app_state &other)                = delete;
