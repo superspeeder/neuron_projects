@@ -9,6 +9,7 @@
 #include <X11/Xlib.h>
 
 namespace neuron::window {
+    class x11_window;
     class x11_system : public linux_system {
       public:
         x11_system();
@@ -26,6 +27,7 @@ namespace neuron::window {
         Window   _root;
 
         void _dispatch_event(XEvent &event);
+        friend class x11_window;
     };
 
     class x11_window : public window {
@@ -34,9 +36,15 @@ namespace neuron::window {
         ~x11_window() override;
 
         
+        bool should_close() const;
+        window_size_t size() const;
+        void set_title(std::string_view title);
+
+        vk::raii::SurfaceKHR create_surface(const vk::raii::Instance& instance) override;
 
     private:
         Window _window;
+        bool _close_requested = false;
     };
 } // namespace neuron::window
 #endif
